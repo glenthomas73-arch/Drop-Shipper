@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DropDash — eBay Dropshipping Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <div class="logo">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="28" height="28" rx="6" fill="#2563EB"/>
+          <path d="M8 20L14 8L20 20" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M10 16H18" stroke="white" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <span class="logo-text">DropDash</span>
+      </div>
+      <span class="header-sub">eBay Dropshipping Dashboard</span>
+    </div>
+  </header>
+
+  <main class="main">
+    <nav class="tabs" role="tablist">
+      <button class="tab active" role="tab" aria-selected="true" onclick="switchTab('research', this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        Product research
+      </button>
+      <button class="tab" role="tab" aria-selected="false" onclick="switchTab('listing', this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        Listing creator
+      </button>
+      <button class="tab" role="tab" aria-selected="false" onclick="switchTab('orders', this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14"/><path d="m7.5 4.27 9 5.15"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" y1="22" x2="12" y2="12"/><circle cx="18.5" cy="15.5" r="2.5"/><path d="M20.27 17.27 22 19"/></svg>
+        Order tracker
+      </button>
+      <button class="tab" role="tab" aria-selected="false" onclick="switchTab('supplier', this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+        Supplier workflow
+      </button>
+    </nav>
+
+    <!-- RESEARCH -->
+    <div id="panel-research" class="panel active">
+      <div class="card">
+        <h2 class="section-title">Find products to sell</h2>
+        <label class="label" for="res-query">Niche or keyword</label>
+        <div class="row">
+          <input id="res-query" type="text" placeholder="e.g. dog accessories, phone cases, garden tools" onkeydown="if(event.key==='Enter')runResearch()" />
+          <button class="btn btn-primary" onclick="runResearch()" id="res-btn">
+            <span id="res-btn-text">Research</span>
+          </button>
+        </div>
+        <p class="label" style="margin-top:1rem">Quick niche picks</p>
+        <div class="chip-row">
+          <button class="chip" onclick="fillNiche('pet accessories')">Pet accessories</button>
+          <button class="chip" onclick="fillNiche('phone cases')">Phone cases</button>
+          <button class="chip" onclick="fillNiche('kitchen gadgets')">Kitchen gadgets</button>
+          <button class="chip" onclick="fillNiche('home office')">Home office</button>
+          <button class="chip" onclick="fillNiche('fitness gear')">Fitness gear</button>
+          <button class="chip" onclick="fillNiche('baby products')">Baby products</button>
+          <button class="chip" onclick="fillNiche('dog accessories')">Dog accessories</button>
+          <button class="chip" onclick="fillNiche('car accessories')">Car accessories</button>
+        </div>
+      </div>
+
+      <div id="res-result" class="hidden">
+        <div class="metrics-grid">
+          <div class="metric">
+            <div class="metric-val" id="met-margin">—</div>
+            <div class="metric-label">Avg margin</div>
+          </div>
+          <div class="metric">
+            <div class="metric-val" id="met-comp">—</div>
+            <div class="metric-label">Competition</div>
+          </div>
+          <div class="metric">
+            <div class="metric-val" id="met-trend">—</div>
+            <div class="metric-label">Trend</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="label" style="margin:0">AI analysis</span>
+            <div class="btn-group">
+              <button class="btn btn-sm" onclick="goToListing()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                Create listing
+              </button>
+              <button class="btn btn-sm" onclick="copyEl('res-ai-text')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                Copy
+              </button>
+            </div>
+          </div>
+          <div id="res-ai-text" class="result-box"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LISTING -->
+    <div id="panel-listing" class="panel hidden">
+      <div class="card">
+        <h2 class="section-title">Generate eBay listing</h2>
+        <div class="field-row">
+          <div class="field">
+            <label class="label" for="lst-product">Product name</label>
+            <input id="lst-product" type="text" placeholder="e.g. Bamboo dog grooming brush" />
+          </div>
+          <div class="field">
+            <label class="label" for="lst-cost">Your cost price (£)</label>
+            <input id="lst-cost" type="number" step="0.01" placeholder="e.g. 3.50" />
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label class="label" for="lst-cat">Category</label>
+            <select id="lst-cat">
+              <option>Pet Supplies</option>
+              <option>Home &amp; Garden</option>
+              <option>Mobile Phones &amp; Accessories</option>
+              <option>Sporting Goods</option>
+              <option>Toys &amp; Games</option>
+              <option>Health &amp; Beauty</option>
+              <option>Kitchen &amp; Home Appliances</option>
+              <option>Baby Products</option>
+              <option>Vehicle Parts &amp; Accessories</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label" for="lst-features">Key features (optional)</label>
+            <input id="lst-features" type="text" placeholder="e.g. eco-friendly, waterproof" />
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="runListing()" id="lst-btn">
+          <span id="lst-btn-text">Generate listing</span>
+        </button>
+      </div>
+
+      <div id="lst-result" class="hidden">
+        <div class="card">
+          <div class="card-header">
+            <span class="label" style="margin:0">Title <span class="char-count" id="title-chars"></span></span>
+            <button class="btn btn-sm" onclick="copyEl('lst-title')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              Copy
+            </button>
+          </div>
+          <div id="lst-title" class="result-box result-box--single"></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="label" style="margin:0">Description</span>
+            <button class="btn btn-sm" onclick="copyEl('lst-desc')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              Copy
+            </button>
+          </div>
+          <div id="lst-desc" class="result-box"></div>
+        </div>
+        <div class="two-col">
+          <div class="card" style="margin:0">
+            <span class="label">Suggested sell price</span>
+            <div class="big-val" id="lst-price">—</div>
+            <div class="sub-val" id="lst-margin-note"></div>
+          </div>
+          <div class="card" style="margin:0">
+            <div class="card-header" style="margin-bottom:8px">
+              <span class="label" style="margin:0">Item specifics</span>
+              <button class="btn btn-sm" onclick="copyEl('lst-specifics')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              </button>
+            </div>
+            <div id="lst-specifics" class="result-box result-box--sm"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="label" style="margin:0">Search tags</span>
+            <button class="btn btn-sm" onclick="copyEl('lst-tags')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              Copy
+            </button>
+          </div>
+          <div id="lst-tags" class="result-box result-box--single"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ORDERS -->
+    <div id="panel-orders" class="panel hidden">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="section-title" style="margin:0">Order tracker</h2>
+          <button class="btn btn-primary btn-sm" onclick="toggleAddOrder()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add order
+          </button>
+        </div>
+
+        <div id="add-order-form" class="add-form hidden">
+          <div class="field-row">
+            <div class="field"><label class="label">eBay order ID</label><input id="new-oid" placeholder="e.g. 12-34567-89012" /></div>
+            <div class="field"><label class="label">Item name</label><input id="new-item" placeholder="e.g. Bamboo dog brush" /></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label class="label">Buyer username</label><input id="new-buyer" placeholder="eBay username" /></div>
+            <div class="field"><label class="label">Sale price (£)</label><input id="new-sale" type="number" step="0.01" placeholder="12.99" /></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label class="label">Cost price (£)</label><input id="new-cost" type="number" step="0.01" placeholder="3.50" /></div>
+            <div class="field">
+              <label class="label">Status</label>
+              <select id="new-status">
+                <option>Awaiting supplier order</option>
+                <option>Supplier order placed</option>
+                <option>Dispatched</option>
+                <option>Delivered</option>
+              </select>
+            </div>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-primary btn-sm" onclick="saveOrder()">Save order</button>
+            <button class="btn btn-sm" onclick="toggleAddOrder()">Cancel</button>
+          </div>
+        </div>
+
+        <div id="orders-list"></div>
+      </div>
+
+      <div class="metrics-grid">
+        <div class="metric">
+          <div class="metric-val" id="stat-orders">0</div>
+          <div class="metric-label">Total orders</div>
+        </div>
+        <div class="metric">
+          <div class="metric-val" id="stat-profit">£0.00</div>
+          <div class="metric-label">Total profit</div>
+        </div>
+        <div class="metric">
+          <div class="metric-val" id="stat-margin">0%</div>
+          <div class="metric-label">Avg margin</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SUPPLIER -->
+    <div id="panel-supplier" class="panel hidden">
+      <div class="card">
+        <h2 class="section-title">Supplier order message</h2>
+        <p class="helper-text">Generate a ready-to-paste message for Syncee, AliExpress, or direct supplier email.</p>
+        <div class="field-row">
+          <div class="field"><label class="label" for="sup-product">Product name</label><input id="sup-product" placeholder="e.g. Bamboo dog grooming brush" /></div>
+          <div class="field"><label class="label" for="sup-qty">Quantity</label><input id="sup-qty" type="number" value="1" min="1" /></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label class="label" for="sup-name">Buyer delivery name</label><input id="sup-name" placeholder="Full name" /></div>
+          <div class="field"><label class="label" for="sup-addr1">Address line 1</label><input id="sup-addr1" placeholder="Street address" /></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label class="label" for="sup-city">City</label><input id="sup-city" placeholder="e.g. Manchester" /></div>
+          <div class="field"><label class="label" for="sup-post">Postcode</label><input id="sup-post" placeholder="e.g. M1 1AE" /></div>
+        </div>
+        <div class="field" style="margin-bottom:1rem">
+          <label class="label" for="sup-notes">Special instructions (optional)</label>
+          <textarea id="sup-notes" rows="2" placeholder="e.g. no invoice inside, plain packaging"></textarea>
+        </div>
+        <button class="btn btn-primary" onclick="runSupplier()" id="sup-btn">
+          <span id="sup-btn-text">Generate message</span>
+        </button>
+      </div>
+
+      <div id="sup-result" class="hidden">
+        <div class="card">
+          <div class="card-header">
+            <span class="label" style="margin:0">Supplier message</span>
+            <button class="btn btn-sm" onclick="copyEl('sup-msg')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              Copy
+            </button>
+          </div>
+          <div id="sup-msg" class="result-box"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div class="toast" id="toast">Copied to clipboard</div>
+
+  <script src="app.js"></script>
+</body>
+</html>
