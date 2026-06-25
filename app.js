@@ -92,46 +92,353 @@ function safeParseJSON(txt) {
   return JSON.parse(txt.replace(/```json|```/g, '').trim());
 }
 
-// ─── Research tab ──────────────────────────────────────────────────────────
+// ─── Research tab — hybrid free / live scan ────────────────────────────────
 
 function fillNiche(niche) {
   document.getElementById('res-query').value = niche;
   document.getElementById('res-query').focus();
 }
 
+function setProgress(text, steps) {
+  document.getElementById('res-progress-text').textContent = text;
+  if (steps) {
+    document.getElementById('res-progress-steps').innerHTML = steps.map(s =>
+      `<div class="progress-step ${s.state}">
+        <span class="step-icon">${s.state === 'done' ? '✓' : s.state === 'active' ? '›' : '·'}</span>
+        ${s.label}
+      </div>`
+    ).join('');
+  }
+}
+
+async function callClaudeWithSearch(system, user) {
+  const key = getApiKey();
+  if (!key) throw new Error('No API key');
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 4000,
+      system,
+      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+      messages: [{ role: 'user', content: user }],
+    }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
+}
+
+let _lastResearchResults = '';
+let _lastNiches = [];
+
+// FREE analysis — AI reasoning only, no web search
 async function runResearch() {
   const q = document.getElementById('res-query').value.trim();
   if (!q) { document.getElementById('res-query').focus(); return; }
 
-  setLoading('res-btn', 'res-btn-text', true, 'Research');
+  const btn  = document.getElementById('res-btn');
+  const span = document.getElementById('res-btn-text');
+  btn.disabled = true;
+  span.innerHTML = '<span class="spinner"></span> Analysing…';
   document.getElementById('res-result').classList.add('hidden');
+  document.getElementById('res-progress').classList.remove('hidden');
+
+  const steps = [
+    { label: 'Identifying sub-niches', state: 'active' },
+    { label: 'Analysing opportunity and competition', state: '' },
+    { label: 'Ranking results', state: '' },
+  ];
+  setProgress('Identifying sub-niches…', steps);
 
   try {
-    const sys = `You are a dropshipping expert specialising in eBay UK. Return ONLY valid JSON — no markdown, no backticks — with exactly these keys:
-margin (string e.g. "25–40%"), competition ("Low" | "Medium" | "High"), trend ("Rising" | "Stable" | "Declining"),
-analysis (3–4 sentences covering opportunity, top product ideas, pricing advice, and supplier tips).`;
+    const sys = `You are an eBay UK dropshipping expert with deep knowledge of what sells well, what is oversaturated, and where the gaps are. You think like a market analyst.
 
-    const txt = await callClaude(sys, `Research this niche for eBay UK dropshipping: ${q}`);
-    const d = safeParseJSON(txt);
+Return ONLY valid JSON — no markdown, no backticks — in this exact format:
+{
+  "niches": [
+    {
+      "name": "specific product name",
+      "avg_price": 9.99,
+      "competition": "Low",
+      "opportunity_score": 8,
+      "reason": "2-3 sentences explaining the opportunity or why to avoid it, based on your knowledge of eBay UK market dynamics, seasonality, and dropshipper saturation patterns",
+      "supplier_tip": "brief tip on where to source this"
+    }
+  ]
+}
 
-    document.getElementById('met-margin').textContent = d.margin      || '—';
-    document.getElementById('met-comp').textContent   = d.competition || '—';
-    document.getElementById('met-trend').textContent  = d.trend       || '—';
-    document.getElementById('res-ai-text').textContent = d.analysis   || txt;
-    document.getElementById('res-result').classList.remove('hidden');
-    window._lastResearchNiche = q;
+Rules:
+- Generate exactly 12 specific sub-niches (e.g. "silicone dog food mat" not "dog accessories")
+- Be realistic and opinionated — most mainstream products ARE saturated, say so
+- opportunity_score: 1-10 (10 = best). Score honestly. Do not give everything Medium competition.
+- competition must be exactly "Low", "Medium", or "High"
+- avg_price should be a realistic eBay UK sell price in GBP
+- Mix well-known and less obvious products — actively look for gaps a typical dropshipper would miss`;
+
+    steps[0].state = 'done'; steps[1].state = 'active';
+    setProgress('Analysing market dynamics…', steps);
+
+    const txt = await callClaude(sys, `Find low-competition dropshipping opportunities within this niche for eBay UK: ${q}\n\nBe honest about saturation. Actively look for underserved sub-niches, unusual product variants, or price point gaps.`);
+
+    steps[1].state = 'done'; steps[2].state = 'active';
+    setProgress('Ranking opportunities…', steps);
+
+    let parsed;
+    try {
+      const jsonMatch = txt.match(/\{[\s\S]*"niches"[\s\S]*\}/);
+      parsed = JSON.parse(jsonMatch ? jsonMatch[0] : txt.replace(/```json|```/g,'').trim());
+    } catch {
+      throw new Error('Could not parse response. Try again.');
+    }
+
+    steps[2].state = 'done';
+    setProgress('Done', steps);
+
+    _lastNiches = parsed.niches || [];
+    renderResults(_lastNiches, q, false);
+
   } catch (e) {
+    document.getElementById('res-progress').classList.add('hidden');
     alert('Error: ' + e.message);
   }
 
-  setLoading('res-btn', 'res-btn-text', false, 'Research');
+  btn.disabled = false;
+  span.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> Find opportunities`;
+}
+
+// LIVE SCAN — web search, costs ~15-20p, behind confirm dialog
+function confirmLiveScan() {
+  const q = document.getElementById('res-query').value.trim();
+  if (!q) { document.getElementById('res-query').focus(); return; }
+
+  const confirmed = confirm(
+    '⚠️ Cost warning\n\n' +
+    'Live scan searches eBay UK in real time for actual sold listing data.\n\n' +
+    'Estimated cost: 15–20p per scan (Anthropic API).\n\n' +
+    'Free analysis runs first to identify sub-niches, then live search validates them.\n\n' +
+    'Proceed?'
+  );
+  if (confirmed) runLiveScan(q);
+}
+
+async function runLiveScan(q) {
+  const btn  = document.getElementById('res-btn');
+  const span = document.getElementById('res-btn-text');
+  btn.disabled = true;
+  span.innerHTML = '<span class="spinner"></span> Live scanning…';
+  document.getElementById('res-result').classList.add('hidden');
+  document.getElementById('res-progress').classList.remove('hidden');
+
+  const steps = [
+    { label: 'Generating sub-niches', state: 'active' },
+    { label: 'Searching eBay UK sold listings (live)', state: '' },
+    { label: 'Analysing real competition data', state: '' },
+    { label: 'Ranking opportunities', state: '' },
+  ];
+  setProgress('Identifying sub-niches to scan…', steps);
+
+  try {
+    // Step 1 — get sub-niches free first
+    const subNichesTxt = await callClaude(
+      `You are an eBay UK dropshipping expert. Return ONLY a JSON array of 10 strings — no markdown, no backticks. Each string is a specific product sub-niche to search on eBay UK (e.g. "silicone dog food mat", "dog cooling mat", "dog bandana UK"). Mix obvious and less obvious ones. Include some you think might be underserved.`,
+      `Broad niche: ${q}`
+    );
+
+    let subNiches;
+    try {
+      subNiches = safeParseJSON(subNichesTxt);
+      if (!Array.isArray(subNiches)) throw new Error();
+    } catch {
+      subNiches = (subNichesTxt.match(/"([^"]+)"/g) || []).map(s => s.replace(/"/g,'')).slice(0,10);
+    }
+    if (!subNiches.length) throw new Error('Could not generate sub-niches.');
+
+    steps[0].state = 'done'; steps[1].state = 'active';
+    setProgress(`Searching eBay UK for ${subNiches.length} products…`, steps);
+
+    // Step 2 — live search
+    const searchPrompt = `You are an eBay UK dropshipping market researcher. Search eBay UK sold listings for each product below and gather real data.
+
+Products to research:
+${subNiches.map((n,i) => `${i+1}. ${n}`).join('\n')}
+
+For each, search eBay.co.uk sold listings and note: active listing count, recent sold count, price range. Then return ONLY valid JSON — no markdown, no backticks:
+{
+  "niches": [
+    {
+      "name": "product name",
+      "active_listings": 150,
+      "sold_30d": 45,
+      "avg_price": 9.99,
+      "competition": "Low",
+      "opportunity_score": 8,
+      "reason": "2-3 sentences based on the real data you found",
+      "supplier_tip": "brief sourcing tip"
+    }
+  ]
+}
+opportunity_score 1-10. competition = "Low"/"Medium"/"High". Base ONLY on real search results.`;
+
+    steps[1].state = 'done'; steps[2].state = 'active';
+    setProgress('Reading live eBay data…', steps);
+
+    const rawResults = await callClaudeWithSearch(
+      'You are an eBay UK market research assistant. Always search before responding. Return only valid JSON.',
+      searchPrompt
+    );
+
+    steps[2].state = 'done'; steps[3].state = 'active';
+    setProgress('Ranking opportunities…', steps);
+
+    let parsed;
+    try {
+      const jsonMatch = rawResults.match(/\{[\s\S]*"niches"[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('no json block');
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch {
+      throw new Error('Could not parse live data. eBay pages can vary — try again.');
+    }
+
+    steps[3].state = 'done';
+    setProgress('Done', steps);
+
+    _lastNiches = parsed.niches || [];
+    renderResults(_lastNiches, q, true);
+
+  } catch (e) {
+    document.getElementById('res-progress').classList.add('hidden');
+    alert('Live scan error: ' + e.message);
+  }
+
+  btn.disabled = false;
+  span.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> Find opportunities`;
+}
+
+// Shared render function used by both free and live scan
+function renderResults(niches, q, isLive) {
+  if (!niches.length) {
+    document.getElementById('res-progress').classList.add('hidden');
+    alert('No results returned. Try a different niche.');
+    return;
+  }
+
+  niches.sort((a, b) => (b.opportunity_score || 0) - (a.opportunity_score || 0));
+
+  const opportunities = niches.filter(n => (n.opportunity_score || 0) >= 6);
+  const avoid         = niches.filter(n => (n.opportunity_score || 0) < 4);
+  const bestMargin    = opportunities.length && opportunities[0].avg_price
+    ? Math.round(((opportunities[0].avg_price - opportunities[0].avg_price * 0.35) / opportunities[0].avg_price) * 100)
+    : 0;
+
+  _lastResearchResults = buildReportText(q, niches, opportunities, avoid, isLive);
+
+  document.getElementById('met-opps').textContent        = opportunities.length;
+  document.getElementById('met-avoid').textContent       = avoid.length;
+  document.getElementById('met-best-margin').textContent = bestMargin ? `~${bestMargin}%` : '—';
+
+  // Data source badge
+  const badge = isLive
+    ? `<span class="opp-pill pill-green" style="font-size:11px">● Live eBay data</span>`
+    : `<span class="opp-pill pill-amber" style="font-size:11px">◐ AI analysis — use Live scan to validate</span>`;
+  document.getElementById('res-data-badge').innerHTML = badge;
+
+  const cards = document.getElementById('opp-cards');
+  if (!opportunities.length) {
+    cards.innerHTML = '<div class="card"><p style="font-size:13px;color:var(--text-secondary)">No clear opportunities found. Try a broader niche or run a live scan.</p></div>';
+  } else {
+    cards.innerHTML = opportunities.map((n, i) => {
+      const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
+      const rankLabel = i === 0 ? '🏆 Top pick' : i === 1 ? '2nd' : i === 2 ? '3rd' : `#${i+1}`;
+      const compClass = n.competition === 'Low' ? 'pill-green' : n.competition === 'Medium' ? 'pill-amber' : 'pill-gray';
+      const price     = n.avg_price ? `£${parseFloat(n.avg_price).toFixed(2)}` : '—';
+      const sold      = n.sold_30d  ? `${n.sold_30d} sold/mo` : '';
+      const active    = n.active_listings ? `${n.active_listings} listings` : '';
+      const name      = n.name.replace(/'/g, "\\'");
+
+      return `<div class="opp-card ${rankClass}">
+        <span class="opp-rank">${rankLabel}</span>
+        <div class="opp-title">${n.name}</div>
+        <div class="opp-meta">
+          <span class="opp-pill ${compClass}">${n.competition} competition</span>
+          <span class="opp-pill pill-blue">${price} avg</span>
+          ${sold  ? `<span class="opp-pill pill-gray">${sold}</span>`  : ''}
+          ${active? `<span class="opp-pill pill-gray">${active}</span>`: ''}
+        </div>
+        <div class="opp-reason">${n.reason || ''}</div>
+        ${n.supplier_tip ? `<div class="opp-tip">💡 ${n.supplier_tip}</div>` : ''}
+        <div class="opp-actions">
+          <button class="btn btn-sm btn-primary" onclick="goToListingWith('${name}')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Create listing
+          </button>
+          <button class="btn btn-sm" onclick="goToSupplierWith('${name}')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+            Supplier message
+          </button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  if (avoid.length) {
+    document.getElementById('avoid-list').innerHTML = avoid.map(n =>
+      `<span style="margin-right:1.5rem">✗ ${n.name} <span style="color:var(--text-muted);font-size:11px">(${n.competition} competition)</span></span>`
+    ).join('<br>');
+    document.getElementById('avoid-card').style.display = 'block';
+  } else {
+    document.getElementById('avoid-card').style.display = 'none';
+  }
+
+  document.getElementById('res-progress').classList.add('hidden');
+  document.getElementById('res-result').classList.remove('hidden');
+}
+
+function buildReportText(niche, all, opps, avoid, isLive) {
+  const lines = [
+    `DropDash Research Report — ${niche}`,
+    `Data source: ${isLive ? 'Live eBay scan' : 'AI analysis'}`,
+    '='.repeat(45), '',
+    `OPPORTUNITIES (${opps.length} found)`, ''
+  ];
+  opps.forEach((n, i) => {
+    lines.push(`${i+1}. ${n.name}`);
+    lines.push(`   Competition: ${n.competition} | Avg price: £${parseFloat(n.avg_price||0).toFixed(2)}${n.sold_30d ? ` | Sold/mo: ${n.sold_30d}` : ''}${n.active_listings ? ` | Active: ${n.active_listings}` : ''}`);
+    lines.push(`   ${n.reason}`);
+    if (n.supplier_tip) lines.push(`   💡 ${n.supplier_tip}`);
+    lines.push('');
+  });
+  if (avoid.length) {
+    lines.push('', `AVOID — SATURATED (${avoid.length})`, '');
+    avoid.forEach(n => lines.push(`✗ ${n.name} (${n.competition} competition)`));
+  }
+  return lines.join('\n');
+}
+
+function copyResults() {
+  if (_lastResearchResults) {
+    navigator.clipboard.writeText(_lastResearchResults).then(() => showToast('Report copied'));
+  }
+}
+
+function goToListingWith(product) {
+  document.getElementById('lst-product').value = product;
+  document.querySelectorAll('.tab')[1].click();
 }
 
 function goToListing() {
-  if (window._lastResearchNiche) {
-    document.getElementById('lst-product').value = window._lastResearchNiche;
-  }
   document.querySelectorAll('.tab')[1].click();
+}
+
+function goToSupplierWith(product) {
+  document.getElementById('sup-product').value = product;
+  document.querySelectorAll('.tab')[3].click();
 }
 
 // ─── Listing tab ──────────────────────────────────────────────────────────

@@ -44,57 +44,89 @@
     <!-- RESEARCH -->
     <div id="panel-research" class="panel active">
       <div class="card">
-        <h2 class="section-title">Find products to sell</h2>
-        <label class="label" for="res-query">Niche or keyword</label>
+        <h2 class="section-title">Find low-competition products to sell</h2>
+        <p class="helper-text">Enter a broad niche — the tool searches eBay UK for real sold data across 10+ sub-niches and surfaces the gaps with low competition and decent demand.</p>
+        <label class="label" for="res-query">Broad niche</label>
         <div class="row">
-          <input id="res-query" type="text" placeholder="e.g. dog accessories, phone cases, garden tools" onkeydown="if(event.key==='Enter')runResearch()" />
+          <input id="res-query" type="text" placeholder="e.g. dog accessories, kitchen gadgets, home office" onkeydown="if(event.key==='Enter')runResearch()" />
           <button class="btn btn-primary" onclick="runResearch()" id="res-btn">
-            <span id="res-btn-text">Research</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <span id="res-btn-text">Find opportunities</span>
+          </button>
+          <button class="btn" onclick="confirmLiveScan()" title="Search live eBay data — costs ~15–20p per scan" style="white-space:nowrap">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+            Live scan ⚠️ ~20p
           </button>
         </div>
-        <p class="label" style="margin-top:1rem">Quick niche picks</p>
+        <p class="label" style="margin-top:1rem">Quick picks</p>
         <div class="chip-row">
+          <button class="chip" onclick="fillNiche('dog accessories')">Dog accessories</button>
           <button class="chip" onclick="fillNiche('pet accessories')">Pet accessories</button>
-          <button class="chip" onclick="fillNiche('phone cases')">Phone cases</button>
           <button class="chip" onclick="fillNiche('kitchen gadgets')">Kitchen gadgets</button>
           <button class="chip" onclick="fillNiche('home office')">Home office</button>
           <button class="chip" onclick="fillNiche('fitness gear')">Fitness gear</button>
           <button class="chip" onclick="fillNiche('baby products')">Baby products</button>
-          <button class="chip" onclick="fillNiche('dog accessories')">Dog accessories</button>
           <button class="chip" onclick="fillNiche('car accessories')">Car accessories</button>
+          <button class="chip" onclick="fillNiche('garden tools')">Garden tools</button>
         </div>
       </div>
 
+      <!-- Progress indicator -->
+      <div id="res-progress" class="hidden">
+        <div class="card progress-card">
+          <div class="progress-header">
+            <span class="spinner-dark"></span>
+            <span id="res-progress-text">Generating sub-niches…</span>
+          </div>
+          <div id="res-progress-steps" class="progress-steps"></div>
+        </div>
+      </div>
+
+      <!-- Results -->
       <div id="res-result" class="hidden">
-        <div class="metrics-grid">
+        <div style="margin-bottom:.75rem" id="res-data-badge"></div>
+        <div class="results-summary">
           <div class="metric">
-            <div class="metric-val" id="met-margin">—</div>
-            <div class="metric-label">Avg margin</div>
+            <div class="metric-val" id="met-opps">—</div>
+            <div class="metric-label">Opportunities found</div>
           </div>
           <div class="metric">
-            <div class="metric-val" id="met-comp">—</div>
-            <div class="metric-label">Competition</div>
+            <div class="metric-val" id="met-avoid">—</div>
+            <div class="metric-label">Niches to avoid</div>
           </div>
           <div class="metric">
-            <div class="metric-val" id="met-trend">—</div>
-            <div class="metric-label">Trend</div>
+            <div class="metric-val" id="met-best-margin">—</div>
+            <div class="metric-label">Best est. margin</div>
           </div>
         </div>
-        <div class="card">
+
+        <!-- Opportunity cards -->
+        <div id="opp-cards"></div>
+
+        <!-- Avoid list -->
+        <div class="card" id="avoid-card" style="display:none">
           <div class="card-header">
-            <span class="label" style="margin:0">AI analysis</span>
-            <div class="btn-group">
-              <button class="btn btn-sm" onclick="goToListing()">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                Create listing
-              </button>
-              <button class="btn btn-sm" onclick="copyEl('res-ai-text')">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                Copy
-              </button>
-            </div>
+            <span class="label" style="margin:0;color:var(--danger-text)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+              Saturated — avoid these
+            </span>
           </div>
-          <div id="res-ai-text" class="result-box"></div>
+          <div id="avoid-list" style="font-size:13px;color:var(--text-secondary);line-height:2"></div>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:.5rem">
+          <button class="btn btn-sm" onclick="copyResults()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Copy full report
+          </button>
+          <button class="btn btn-sm" onclick="runResearch()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Re-scan (free)
+          </button>
+          <button class="btn btn-sm" onclick="confirmLiveScan()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+            Live scan ⚠️ ~20p
+          </button>
         </div>
       </div>
     </div>
