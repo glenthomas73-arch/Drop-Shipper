@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head><title>DropDash API Test</title>
+<style>body{font-family:monospace;padding:20px;background:#111;color:#0f0} pre{white-space:pre-wrap;word-break:break-all} .err{color:#f66}</style>
+</head>
+<body>
+<h2 style="color:#fff">DropDash — Raw API Response Test</h2>
+<button onclick="runTest()" style="padding:10px 20px;font-size:16px;cursor:pointer">Run Test (uses your saved API key)</button>
+<p id="status" style="color:#ff0"></p>
+<pre id="out"></pre>
+<script>
+async function runTest() {
+  const key = localStorage.getItem('dd_api_key') || prompt('Enter Anthropic API key:');
+  if (!key) return;
+  localStorage.setItem('dd_api_key', key);
+  document.getElementById('status').textContent = 'Calling API...';
+  document.getElementById('out').textContent = '';
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        system: 'You are an eBay UK dropshipping expert. Respond with ONLY a raw JSON object. Start with { end with }. Return: {"niches":[{"name":"test product","supplier_cost":3.50,"ebay_sell_price":12.99,"profit_after_fees":5.10,"margin_pct":39,"source_platform":"Syncee","syncee_search":"dog cooling mat UK","source_tip":"Filter by UK warehouse on Syncee","competition":"Low","opportunity_score":8,"reason":"Good demand low competition","avg_price":12.99,"sold_30d":45,"active_listings":120}]}',
+        messages: [{ role: 'user', content: 'Return the example JSON exactly as shown in your system prompt.' }]
+      })
+    });
+    const data = await res.json();
+    document.getElementById('status').textContent = 'Response received. Status: ' + res.status;
+    const raw = data.content?.[0]?.text || '';
+    document.getElementById('out').textContent = '=== RAW TEXT ===\n' + raw + '\n\n=== PARSED ===\n';
+    try {
+      let clean = raw.replace(/```json|```/gi,'').trim();
+      const parsed = JSON.parse(clean);
+      document.getElementById('out').textContent += JSON.stringify(parsed.niches?.[0], null, 2);
+      document.getElementById('out').textContent += '\n\nFields present: ' + Object.keys(parsed.niches?.[0] || {}).join(', ');
+    } catch(e) {
+      document.getElementById('out').textContent += 'PARSE FAILED: ' + e.message;
+    }
+  } catch(e) {
+    document.getElementById('status').className = 'err';
+    document.getElementById('status').textContent = 'ERROR: ' + e.message;
+  }
+}
+</script>
+</body>
+</html>
