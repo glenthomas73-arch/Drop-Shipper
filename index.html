@@ -228,7 +228,7 @@
           </div>
           <p class="helper-text" style="margin-bottom:.75rem">Paste image URLs from your Syncee supplier listing &mdash; one per line. Click an image to select it for eBay, then download.</p>
           <div style="display:flex;gap:6px;margin-bottom:.75rem">
-            <textarea id="supplier-img-urls" rows="3" placeholder="https://supplier.com/image1.jpg&#10;https://supplier.com/image2.jpg&#10;https://supplier.com/image3.jpg" style="flex:1;padding:8px 10px;border:1px solid var(--border,#ddd);border-radius:6px;font-size:12px;background:var(--bg-primary,#fff);color:var(--text-primary);resize:vertical;font-family:monospace"></textarea>
+            <textarea id="supplier-img-urls" rows="3" oninput="onSupplierUrlsInput(this)" onchange="onSupplierUrlsInput(this)" placeholder="https://supplier.com/image1.jpg&#10;https://supplier.com/image2.jpg&#10;https://supplier.com/image3.jpg" style="flex:1;padding:8px 10px;border:1px solid var(--border,#ddd);border-radius:6px;font-size:12px;background:var(--bg-primary,#fff);color:var(--text-primary);resize:vertical;font-family:monospace"></textarea>
             <button class="btn btn-primary btn-sm" onclick="loadSupplierImages()" style="align-self:flex-start;white-space:nowrap">Load images</button>
           </div>
           <div id="lst-img-grid" class="img-grid"></div>
@@ -337,6 +337,6 @@
 
   <div class="toast" id="toast">Copied to clipboard</div>
 
-  <script src="app.js?v=5"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>

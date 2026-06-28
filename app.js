@@ -443,14 +443,23 @@ IMAGE SECTION - supplier URL paste & select
 let _selectedImages = []; // { url, filename }
 let _currentImages  = [];
 
+let _supplierUrlsCache = '';
+
+function onSupplierUrlsInput(el) {
+  _supplierUrlsCache = el.value || el.innerHTML || '';
+}
+
 function loadSupplierImages() {
   const textarea = document.getElementById('supplier-img-urls');
   const grid     = document.getElementById('lst-img-grid');
-  if (!textarea || !grid) return;
+  if (!grid) return;
 
-  const urls = textarea.value.split('\n')
-    .map(function(u) { return u.trim(); })
-    .filter(function(u) { return u.length > 0; });
+  // Try multiple ways to get the value (Dashlane can block .value)
+  const raw = (textarea ? (textarea.value || textarea.textContent || textarea.innerHTML || '') : '') || _supplierUrlsCache;
+
+  const urls = raw.split('\n')
+    .map(function(u) { return u.trim().replace(/<[^>]+>/g, ''); })
+    .filter(function(u) { return u.length > 4 && u.indexOf('http') === 0; });
 
   if (urls.length === 0) { showToast('Paste at least one image URL'); return; }
 
