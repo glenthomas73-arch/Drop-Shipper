@@ -480,7 +480,7 @@ function renderImageGrid() {
   grid.innerHTML = _currentImages.map(function(img, i) {
     const alreadySelected = _selectedImages.some(function(s) { return s.filename === img.filename; });
     return '<div class="img-tile' + (alreadySelected ? ' img-tile--selected' : '') + '" id="imgtile-' + i + '" onclick="toggleImageSelect(' + i + ')" data-url="' + escHtml(img.url) + '" data-filename="' + escHtml(img.filename) + '">' +
-      '<img src="' + escHtml(img.thumb) + '" alt="Product image ' + (i + 1) + '" loading="lazy" onerror="this.parentElement.style.display=\'none\'" />' +
+      '<img src="' + escHtml(img.thumb) + '" alt="Product image ' + (i + 1) + '" loading="lazy" onerror="this.style.display=this.style.display" />' +
       '<div class="img-tile-check">' +
       '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
       '</div>' +
