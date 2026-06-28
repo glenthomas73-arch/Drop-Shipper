@@ -445,10 +445,28 @@ let _currentImages  = [];
 
 let _supplierUrls = [];
 
+// Store pasted URL via clipboard event to bypass password manager interference
+var _pendingPastedUrl = '';
+
+document.addEventListener('paste', function(e) {
+  if (e.target && e.target.id === 'supplier-url-input') {
+    var pasted = (e.clipboardData || window.clipboardData).getData('text').trim();
+    if (pasted) {
+      _pendingPastedUrl = pasted;
+      setTimeout(function() {
+        var input = document.getElementById('supplier-url-input');
+        if (input) input.value = _pendingPastedUrl;
+      }, 10);
+    }
+  }
+});
+
 function addSupplierUrl() {
   const input = document.getElementById('supplier-url-input');
   if (!input) return;
-  const url = input.value.trim();
+  // Try .value first, fall back to the clipboard-captured value
+  const url = (input.value || _pendingPastedUrl || '').trim();
+  _pendingPastedUrl = '';
   if (!url || url.indexOf('http') !== 0) { showToast('Paste a valid image URL starting with http'); return; }
   if (_supplierUrls.indexOf(url) > -1) { showToast('URL already added'); return; }
   _supplierUrls.push(url);

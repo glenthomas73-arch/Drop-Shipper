@@ -228,7 +228,7 @@
           </div>
           <p class="helper-text" style="margin-bottom:.5rem">Paste each image URL from your Syncee supplier and press Enter or click Add.</p>
           <div style="display:flex;gap:6px;margin-bottom:.5rem">
-            <input id="supplier-url-input" type="text" placeholder="https://supplier.com/image.jpg" style="flex:1;padding:8px 10px;border:1px solid var(--border,#ddd);border-radius:6px;font-size:13px;background:var(--bg-primary,#fff);color:var(--text-primary)" onkeydown="if(event.key===&quot;Enter&quot;)addSupplierUrl()" autocomplete="off" spellcheck="false" />
+            <input id="supplier-url-input" type="text" data-dashlane-rid="ignore" data-form-type="other" autocomplete="off" data-lpignore="true" data-1p-ignore="true" placeholder="https://supplier.com/image.jpg" style="flex:1;padding:8px 10px;border:1px solid var(--border,#ddd);border-radius:6px;font-size:13px;background:var(--bg-primary,#fff);color:var(--text-primary)" onkeydown="if(event.key===&quot;Enter&quot;)addSupplierUrl()" autocomplete="off" spellcheck="false" />
             <button class="btn btn-primary btn-sm" onclick="addSupplierUrl()" style="white-space:nowrap">Add</button>
           </div>
           <div id="supplier-url-list" style="margin-bottom:.5rem;font-size:12px;color:var(--text-secondary)"></div>
@@ -338,6 +338,6 @@
 
   <div class="toast" id="toast">Copied to clipboard</div>
 
-  <script src="app.js?v=8"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>
