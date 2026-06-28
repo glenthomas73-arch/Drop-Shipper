@@ -167,7 +167,9 @@ async function runFreeAnalysis(q) {
   setProgress('Generating sub-niches...', steps);
 
   try {
-    const SYSTEM = 'You are an eBay UK dropshipping expert who also knows how to source products from Syncee and AliExpress.\n' +
+    const SYSTEM = 'You are an eBay UK dropshipping expert specialising in UK-warehouse sourcing via Syncee and Avasam.\n' +
+      'CRITICAL RULE: Only recommend products that can be sourced from UK-based warehouses. Never suggest AliExpress, CJ Dropshipping, or any supplier shipping from China or outside the UK/EU. UK buyers expect 2-5 day delivery — overseas shipping destroys eBay feedback and listing rank.\n' +
+      'Preferred source platforms: Syncee (filter by UK warehouse) and Avasam (all suppliers are UK-based).\n' +
       'You MUST respond with ONLY a raw JSON object — no markdown, no backticks, no explanation, no preamble.\n' +
       'Start your response with { and end with }.\n' +
       'Return exactly this structure:\n' +
@@ -183,13 +185,14 @@ async function runFreeAnalysis(q) {
       '      "ebay_sell_price": number,\n' +
       '      "profit_after_fees": number,\n' +
       '      "margin_pct": number,\n' +
-      '      "source_platform": "Syncee|AliExpress|Both",\n' +
+      '      "source_platform": "Syncee|Avasam",\n' +
       '      "syncee_search": "string",\n' +
       '      "source_tip": "string"\n' +
       '    }\n  ]\n}';
 
     const userMsg = 'Research eBay UK dropshipping opportunities for the niche: "' + q + '".\n' +
       'Return 8-12 specific sub-niches with realistic UK eBay data AND sourcing info.\n\n' +
+      'IMPORTANT: Only include products you can source from UK-warehouse suppliers on Syncee or Avasam. Do not suggest anything sourced from China or with overseas shipping.\n\n' +
       'For each niche:\n' +
       '- avg_price: typical eBay UK selling price in GBP\n' +
       '- sold_30d: estimated units sold per month\n' +
@@ -197,13 +200,13 @@ async function runFreeAnalysis(q) {
       '- competition: Low/Medium/High\n' +
       '- opportunity_score: 1-10 (high = low competition + good margin + proven demand)\n' +
       '- reason: one sentence why this is a good/bad opportunity\n' +
-      '- supplier_cost: realistic buy price from Syncee/AliExpress in GBP (this is what we pay the supplier)\n' +
+      '- supplier_cost: realistic buy price from a UK-warehouse supplier in GBP\n' +
       '- ebay_sell_price: recommended listing price on eBay in GBP (must be at least 2.5x supplier_cost)\n' +
       '- profit_after_fees: ebay_sell_price minus supplier_cost minus eBay fees (13% of sell price)\n' +
       '- margin_pct: profit_after_fees / ebay_sell_price * 100 rounded to nearest integer\n' +
-      '- source_platform: where to source it — Syncee (preferred for UK suppliers), AliExpress, or Both\n' +
-      '- syncee_search: exact search term to type into Syncee to find this product\n' +
-      '- source_tip: one sentence practical tip about sourcing this specific product (e.g. filter by UK warehouse, check MOQ, look for branded alternatives)';
+      '- source_platform: Syncee or Avasam (never AliExpress or CJ Dropshipping)\n' +
+      '- syncee_search: exact search term to use on Syncee or Avasam to find this product\n' +
+      '- source_tip: one sentence tip about sourcing from a UK warehouse (e.g. filter by UK dispatch, check stock levels, look for suppliers with tracked shipping)';
 
     const raw = await claude(SYSTEM, userMsg, 4000);
 
@@ -276,7 +279,7 @@ async function runFreeAnalysis(q) {
         const sourceTip    = escHtml(n.source_tip     || '');
         const nameSafe     = escHtml(n.name);
         const priceSafe    = escHtml(sellPrice);
-        const platformClass= n.source_platform === 'AliExpress' ? 'pill-gray' : 'pill-blue';
+        const platformClass= n.source_platform === 'Avasam' ? 'pill-green' : 'pill-blue';
 
         return '<div class="opp-card ' + (i === 0 ? 'top-pick' : '') + '">' +
           '<div class="opp-card-header">' +
@@ -423,12 +426,117 @@ async function runListing() {
 
     show('lst-result');
 
+    // Auto-search images after listing is generated
+    searchImages();
+
   } catch (e) {
     alert('Error: ' + e.message);
   } finally {
     if (btn) btn.disabled = false;
     if (btnText) btnText.textContent = 'Generate listing';
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+IMAGE SEARCH — fetches product images from Unsplash (free, no key needed)
+with fallback search terms generated from the product name
+═══════════════════════════════════════════════════════════════════════════ */
+
+let _selectedImages = []; // { url, thumb, filename }
+let _imgSearchPage  = 1;
+
+async function searchImages() {
+  const product = (document.getElementById('lst-product') && document.getElementById('lst-product').value || '').trim();
+  if (!product) return;
+
+  const grid      = document.getElementById('lst-img-grid');
+  const loadingEl = document.getElementById('lst-img-loading');
+  const refreshBtn = document.getElementById('img-refresh-btn');
+
+  if (!grid) return;
+
+  // Show loading
+  if (loadingEl) { loadingEl.style.display = 'flex'; loadingEl.classList.remove('hidden'); }
+  if (refreshBtn) refreshBtn.disabled = true;
+
+  // Build search query — clean up product name for image search
+  const query = product
+    .replace(/[£$€]/g, '')
+    .replace(/\b(uk|ebay|listing|for sale|brand new|new)\b/gi, '')
+    .trim();
+
+  // Unsplash source — free, no API key, returns random relevant images
+  // We use different seeds per page to get fresh images
+  const images = [];
+  const seeds  = [query, query + ' product', query + ' white background', query + ' closeup', query + ' lifestyle', query + ' detail'];
+
+  for (let i = 0; i < 6; i++) {
+    const seed    = encodeURIComponent(seeds[i % seeds.length] + (_imgSearchPage > 1 ? ' ' + _imgSearchPage + i : ''));
+    const thumbUrl = 'https://source.unsplash.com/400x400/?' + seed;
+    const fullUrl  = 'https://source.unsplash.com/800x800/?' + seed;
+    const filename = product.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').slice(0, 40) + '-' + (i + 1) + '.jpg';
+    images.push({ thumb: thumbUrl, url: fullUrl, filename: filename });
+  }
+
+  _imgSearchPage++;
+
+  // Render grid
+  grid.innerHTML = images.map(function(img, i) {
+    const alreadySelected = _selectedImages.some(function(s) { return s.filename === img.filename; });
+    return '<div class="img-tile' + (alreadySelected ? ' img-tile--selected' : '') + '" id="imgtile-' + i + '" onclick="toggleImageSelect(' + i + ')" data-url="' + escHtml(img.url) + '" data-thumb="' + escHtml(img.thumb) + '" data-filename="' + escHtml(img.filename) + '">' +
+      '<img src="' + escHtml(img.thumb) + '" alt="' + escHtml(query) + '" loading="lazy" onerror="this.parentElement.style.display=\'none\'" />' +
+      '<div class="img-tile-check">' +
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
+      '</div>' +
+      '<a class="img-tile-dl" href="' + escHtml(img.url) + '" download="' + escHtml(img.filename) + '" target="_blank" onclick="event.stopPropagation()" title="Download">' +
+      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
+      '</a>' +
+      '</div>';
+  }).join('');
+
+  _currentImages = images;
+
+  if (loadingEl) { loadingEl.style.display = 'none'; }
+  if (refreshBtn) refreshBtn.disabled = false;
+  updateSelectedPanel();
+}
+
+let _currentImages = [];
+
+function toggleImageSelect(i) {
+  const img  = _currentImages[i];
+  if (!img) return;
+  const tile = document.getElementById('imgtile-' + i);
+  const idx  = _selectedImages.findIndex(function(s) { return s.filename === img.filename; });
+  if (idx >= 0) {
+    _selectedImages.splice(idx, 1);
+    if (tile) tile.classList.remove('img-tile--selected');
+  } else {
+    if (_selectedImages.length >= 12) { showToast('Max 12 images for eBay listing'); return; }
+    _selectedImages.push(img);
+    if (tile) tile.classList.add('img-tile--selected');
+  }
+  updateSelectedPanel();
+}
+
+function updateSelectedPanel() {
+  const countEl    = document.getElementById('img-selected-count');
+  const panel      = document.getElementById('lst-img-selected');
+  const listEl     = document.getElementById('lst-img-selected-list');
+  const n          = _selectedImages.length;
+
+  if (countEl) countEl.textContent = n ? (n + ' selected') : '';
+
+  if (!panel || !listEl) return;
+  if (!n) { panel.classList.add('hidden'); return; }
+
+  panel.classList.remove('hidden');
+  listEl.innerHTML = _selectedImages.map(function(img, i) {
+    return '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">' +
+      '<span>' + (i + 1) + '. ' + escHtml(img.filename) + '</span>' +
+      '<a class="btn btn-sm" href="' + escHtml(img.url) + '" download="' + escHtml(img.filename) + '" target="_blank" style="font-size:11px;padding:2px 8px">⬇ Download</a>' +
+      '</div>';
+  }).join('');
 }
 
 /* ─── Copy helpers ─────────────────────────────────────────────────────── */
@@ -580,10 +688,10 @@ async function runSupplier() {
       'Quantity: ' + qty + '\n' +
       'Delivery address: ' + (delivery || 'To be provided') + '\n' +
       'Additional notes: ' + (notes || 'None') + '\n\n' +
-      'Write a clear, professional email/message suitable for sending to a Syncee, AliExpress, or direct supplier. Include all order details. Be concise.';
+      'Write a clear, professional email/message suitable for sending to a UK-based supplier on Syncee or Avasam. Include all order details. Mention that you require UK dispatch with tracked shipping. Be concise.';
 
     const message = await claude(
-      'You are a professional eBay UK dropshipper writing supplier order messages. Be concise and professional.',
+      'You are a professional eBay UK dropshipper writing supplier order messages. Only work with UK-warehouse suppliers (Syncee, Avasam). Always request UK dispatch with tracked shipping. Be concise and professional.',
       userMsg,
       500
     );
