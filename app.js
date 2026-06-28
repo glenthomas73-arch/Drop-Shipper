@@ -119,7 +119,13 @@ function buildReportText(niche, niches, opps, avoid) {
   lines.push('Opportunities (' + opps.length + '):');
   opps.forEach(function(n, i) {
     lines.push((i + 1) + '. ' + n.name);
-    lines.push('   Price: £' + parseFloat(n.avg_price || 0).toFixed(2) + '  Sold/mo: ' + (n.sold_30d || '?') + '  Competition: ' + (n.competition || '?'));
+    lines.push('   eBay sell: £' + parseFloat(n.ebay_sell_price || n.avg_price || 0).toFixed(2) +
+               '  Buy: £' + parseFloat(n.supplier_cost || 0).toFixed(2) +
+               '  Profit: £' + parseFloat(n.profit_after_fees || 0).toFixed(2) +
+               '  Margin: ' + (n.margin_pct ? Math.round(n.margin_pct) + '%' : '?'));
+    lines.push('   Sold/mo: ' + (n.sold_30d || '?') + '  Competition: ' + (n.competition || '?') + '  Score: ' + (n.opportunity_score || '?') + '/10');
+    lines.push('   Source: ' + (n.source_platform || 'Syncee') + ' — search "' + (n.syncee_search || n.name) + '"');
+    if (n.source_tip) lines.push('   Tip: ' + n.source_tip);
     lines.push('   ' + (n.reason || ''));
     lines.push('');
   });
@@ -161,7 +167,7 @@ async function runFreeAnalysis(q) {
   setProgress('Generating sub-niches...', steps);
 
   try {
-    const SYSTEM = 'You are an eBay UK dropshipping expert.\n' +
+    const SYSTEM = 'You are an eBay UK dropshipping expert who also knows how to source products from Syncee and AliExpress.\n' +
       'You MUST respond with ONLY a raw JSON object — no markdown, no backticks, no explanation, no preamble.\n' +
       'Start your response with { and end with }.\n' +
       'Return exactly this structure:\n' +
@@ -172,12 +178,32 @@ async function runFreeAnalysis(q) {
       '      "active_listings": number,\n' +
       '      "competition": "Low|Medium|High",\n' +
       '      "opportunity_score": number,\n' +
-      '      "reason": "string"\n' +
+      '      "reason": "string",\n' +
+      '      "supplier_cost": number,\n' +
+      '      "ebay_sell_price": number,\n' +
+      '      "profit_after_fees": number,\n' +
+      '      "margin_pct": number,\n' +
+      '      "source_platform": "Syncee|AliExpress|Both",\n' +
+      '      "syncee_search": "string",\n' +
+      '      "source_tip": "string"\n' +
       '    }\n  ]\n}';
 
     const userMsg = 'Research eBay UK dropshipping opportunities for the niche: "' + q + '".\n' +
-      'Return 8-12 specific sub-niches with realistic UK eBay estimates for avg_price (GBP), sold_30d, active_listings, competition, opportunity_score (1-10), and a one-sentence reason.\n' +
-      'High opportunity_score means low competition + good margin + proven demand.';
+      'Return 8-12 specific sub-niches with realistic UK eBay data AND sourcing info.\n\n' +
+      'For each niche:\n' +
+      '- avg_price: typical eBay UK selling price in GBP\n' +
+      '- sold_30d: estimated units sold per month\n' +
+      '- active_listings: number of competing listings\n' +
+      '- competition: Low/Medium/High\n' +
+      '- opportunity_score: 1-10 (high = low competition + good margin + proven demand)\n' +
+      '- reason: one sentence why this is a good/bad opportunity\n' +
+      '- supplier_cost: realistic buy price from Syncee/AliExpress in GBP (this is what we pay the supplier)\n' +
+      '- ebay_sell_price: recommended listing price on eBay in GBP (must be at least 2.5x supplier_cost)\n' +
+      '- profit_after_fees: ebay_sell_price minus supplier_cost minus eBay fees (13% of sell price)\n' +
+      '- margin_pct: profit_after_fees / ebay_sell_price * 100 rounded to nearest integer\n' +
+      '- source_platform: where to source it — Syncee (preferred for UK suppliers), AliExpress, or Both\n' +
+      '- syncee_search: exact search term to type into Syncee to find this product\n' +
+      '- source_tip: one sentence practical tip about sourcing this specific product (e.g. filter by UK warehouse, check MOQ, look for branded alternatives)';
 
     const raw = await claude(SYSTEM, userMsg, 2000);
 
@@ -220,14 +246,23 @@ async function runFreeAnalysis(q) {
       cards.innerHTML = '<p style="font-size:13px;color:var(--text-secondary)">No clear low-competition opportunities found. Try a broader or different niche.</p>';
     } else {
       cards.innerHTML = opps.map(function(n, i) {
-        const rankLabel = i === 0 ? '🏆 Top pick' : i === 1 ? '2nd' : i === 2 ? '3rd' : ('#' + (i + 1));
-        const compClass = n.competition === 'Low' ? 'pill-green' : n.competition === 'Medium' ? 'pill-amber' : 'pill-gray';
-        const price     = n.avg_price ? ('£' + parseFloat(n.avg_price).toFixed(2)) : '—';
-        const sold      = n.sold_30d  ? (n.sold_30d + ' sold/mo') : '—';
-        const active    = n.active_listings ? (n.active_listings + ' active') : '—';
-        const score     = n.opportunity_score || '?';
-        const nameSafe  = escHtml(n.name);
-        const priceSafe = escHtml(price);
+        const rankLabel    = i === 0 ? '🏆 Top pick' : i === 1 ? '2nd' : i === 2 ? '3rd' : ('#' + (i + 1));
+        const compClass    = n.competition === 'Low' ? 'pill-green' : n.competition === 'Medium' ? 'pill-amber' : 'pill-gray';
+        const price        = n.avg_price       ? ('£' + parseFloat(n.avg_price).toFixed(2))       : '—';
+        const sold         = n.sold_30d        ? (n.sold_30d + ' sold/mo')                        : '—';
+        const active       = n.active_listings ? (n.active_listings + ' active')                  : '—';
+        const score        = n.opportunity_score || '?';
+        const buyCost      = n.supplier_cost    ? ('£' + parseFloat(n.supplier_cost).toFixed(2))  : '—';
+        const sellPrice    = n.ebay_sell_price  ? ('£' + parseFloat(n.ebay_sell_price).toFixed(2)): '—';
+        const profit       = (n.profit_after_fees != null) ? ('£' + parseFloat(n.profit_after_fees).toFixed(2)) : '—';
+        const marginPct    = n.margin_pct       ? (Math.round(n.margin_pct) + '%')                : '—';
+        const platform     = escHtml(n.source_platform || 'Syncee');
+        const synceeSearch = escHtml(n.syncee_search  || n.name);
+        const sourceTip    = escHtml(n.source_tip     || '');
+        const nameSafe     = escHtml(n.name);
+        const priceSafe    = escHtml(sellPrice);
+        const platformClass= n.source_platform === 'AliExpress' ? 'pill-gray' : 'pill-blue';
+
         return '<div class="opp-card ' + (i === 0 ? 'top-pick' : '') + '">' +
           '<div class="opp-card-header">' +
           '<span class="rank-label">' + rankLabel + '</span>' +
@@ -239,6 +274,29 @@ async function runFreeAnalysis(q) {
           '<span class="pill ' + compClass + '">' + (n.competition || '?') + '</span>' +
           '</div>' +
           '<p class="opp-reason">' + escHtml(n.reason || '') + '</p>' +
+
+          /* ── Pricing breakdown ── */
+          '<div style="margin:.75rem 0;padding:.65rem .75rem;background:var(--bg-secondary,#f8f9fa);border-radius:6px;font-size:13px">' +
+          '<div style="font-weight:600;margin-bottom:.4rem;color:var(--text-primary)">💰 Buy / Sell breakdown</div>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:.25rem .5rem;color:var(--text-secondary)">' +
+          '<div><span style="font-size:11px;display:block">Buy price</span><strong style="color:var(--danger,#dc2626)">' + buyCost + '</strong></div>' +
+          '<div><span style="font-size:11px;display:block">eBay sell</span><strong style="color:var(--success,#16a34a)">' + sellPrice + '</strong></div>' +
+          '<div><span style="font-size:11px;display:block">Profit/item</span><strong>' + profit + '</strong></div>' +
+          '<div><span style="font-size:11px;display:block">Margin</span><strong>' + marginPct + '</strong></div>' +
+          '</div>' +
+          '</div>' +
+
+          /* ── Sourcing info ── */
+          '<div style="margin-bottom:.75rem;padding:.65rem .75rem;border:1px solid var(--border,#e5e7eb);border-radius:6px;font-size:13px">' +
+          '<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.35rem">' +
+          '<span style="font-weight:600;color:var(--text-primary)">📦 Source on</span>' +
+          '<span class="pill ' + platformClass + '" style="font-size:11px">' + platform + '</span>' +
+          '</div>' +
+          '<div style="margin-bottom:.3rem"><span style="color:var(--text-secondary);font-size:11px">Search term: </span>' +
+          '<code style="background:var(--bg-secondary,#f1f5f9);padding:1px 5px;border-radius:3px;font-size:12px">' + synceeSearch + '</code></div>' +
+          (sourceTip ? '<div style="color:var(--text-secondary);font-size:12px;margin-top:.3rem">💡 ' + sourceTip + '</div>' : '') +
+          '</div>' +
+
           '<button class="btn btn-sm" onclick="prefillListing(' + "'" + nameSafe.replace(/'/g, "\\'") + "'" + ', ' + "'" + priceSafe + "'" + ')">Create listing →</button>' +
           '</div>';
       }).join('');
