@@ -1,11 +1,11 @@
-/* DropDash — app.js */
+/* DropDash - app.js */
 
-/* ─── Constants ─────────────────────────────────────────────────────────── */
+/* - Constants - */
 const API_URL   = 'https://api.anthropic.com/v1/messages';
 const API_MODEL = 'claude-sonnet-4-6';
 const KEY_NAME        = 'dd_api_key';
 
-/* ─── API key helpers ───────────────────────────────────────────────────── */
+/* - API key helpers - */
 function getKey()    { return localStorage.getItem(KEY_NAME); }
 function saveKey(k)  { localStorage.setItem(KEY_NAME, k.trim()); }
 
@@ -19,7 +19,7 @@ function requireKey() {
 }
 
 
-/* ─── Core Claude call ──────────────────────────────────────────────────── */
+/* - Core Claude call - */
 async function claude(system, userMsg, maxTokens = 1000) {
   const key = requireKey();
   const res = await fetch(API_URL, {
@@ -45,7 +45,7 @@ async function claude(system, userMsg, maxTokens = 1000) {
   return data.content?.[0]?.text || '';
 }
 
-/* ─── Robust JSON parser ────────────────────────────────────────────────── */
+/* - Robust JSON parser - */
 function parseJSON(raw) {
   let clean = raw.replace(/```json|```/gi, '').trim();
   try { return JSON.parse(clean); } catch (_) {}
@@ -56,14 +56,14 @@ function parseJSON(raw) {
   throw new Error('Could not parse response. Try again.');
 }
 
-/* ─── HTML escape ───────────────────────────────────────────────────────── */
+/* - HTML escape - */
 function escHtml(s) {
   return String(s || '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-/* ─── Show / hide helper (handles .hidden class + inline style) ─────────── */
+/* - Show / hide helper (handles .hidden class + inline style) - */
 function show(id) {
   const el = document.getElementById(id);
   if (el) { el.classList.remove('hidden'); el.style.display = ''; }
@@ -73,7 +73,7 @@ function hide(id) {
   if (el) { el.classList.add('hidden'); }
 }
 
-/* ─── Toast notification ────────────────────────────────────────────────── */
+/* - Toast notification - */
 function showToast(msg) {
   const toast = document.getElementById('toast');
   if (!toast) return;
@@ -82,7 +82,7 @@ function showToast(msg) {
   setTimeout(() => toast.classList.remove('show'), 2000);
 }
 
-/* ─── Tab navigation ────────────────────────────────────────────────────── */
+/* - Tab navigation - */
 function switchTab(name, el) {
   document.querySelectorAll('.panel').forEach(p => {
     p.classList.remove('active');
@@ -94,9 +94,9 @@ function switchTab(name, el) {
   if (el) el.classList.add('active');
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-TAB 1 — PRODUCT RESEARCH
-═══════════════════════════════════════════════════════════════════════════ */
+/* -
+TAB 1 - PRODUCT RESEARCH
+- */
 
 let _lastResearchResults = '';
 
@@ -116,16 +116,16 @@ function setProgress(msg, steps) {
 }
 
 function buildReportText(niche, niches, opps, avoid) {
-  const lines = ['DropDash Research Report — ' + niche, '='.repeat(50), ''];
+  const lines = ['DropDash Research Report - ' + niche, '='.repeat(50), ''];
   lines.push('Opportunities (' + opps.length + '):');
   opps.forEach(function(n, i) {
     lines.push((i + 1) + '. ' + n.name);
-    lines.push('   eBay sell: £' + parseFloat(n.ebay_sell_price || n.avg_price || 0).toFixed(2) +
-               '  Buy: £' + parseFloat(n.supplier_cost || 0).toFixed(2) +
-               '  Profit: £' + parseFloat(n.profit_after_fees || 0).toFixed(2) +
+    lines.push('   eBay sell: ' + parseFloat(n.ebay_sell_price || n.avg_price || 0).toFixed(2) +
+               '  Buy: ' + parseFloat(n.supplier_cost || 0).toFixed(2) +
+               '  Profit: ' + parseFloat(n.profit_after_fees || 0).toFixed(2) +
                '  Margin: ' + (n.margin_pct ? Math.round(n.margin_pct) + '%' : '?'));
     lines.push('   Sold/mo: ' + (n.sold_30d || '?') + '  Competition: ' + (n.competition || '?') + '  Score: ' + (n.opportunity_score || '?') + '/10');
-    lines.push('   Source: ' + (n.source_platform || 'Syncee') + ' — search "' + (n.syncee_search || n.name) + '"');
+    lines.push('   Source: ' + (n.source_platform || 'Syncee') + ' - search "' + (n.syncee_search || n.name) + '"');
     if (n.source_tip) lines.push('   Tip: ' + n.source_tip);
     lines.push('   ' + (n.reason || ''));
     lines.push('');
@@ -143,7 +143,7 @@ function fillNiche(niche) {
   if (input) { input.value = niche; input.focus(); }
 }
 
-/* Main search — called by onclick="runResearch()" */
+/* Main search - called by onclick="runResearch()" */
 async function runResearch() {
   const input = document.getElementById('res-query');
   const q = input ? input.value.trim() : '';
@@ -169,9 +169,9 @@ async function runFreeAnalysis(q) {
 
   try {
     const SYSTEM = 'You are an eBay UK dropshipping expert specialising in UK-warehouse sourcing via Syncee and Avasam.\n' +
-      'CRITICAL RULE: Only recommend products that can be sourced from UK-based warehouses. Never suggest AliExpress, CJ Dropshipping, or any supplier shipping from China or outside the UK/EU. UK buyers expect 2-5 day delivery — overseas shipping destroys eBay feedback and listing rank.\n' +
+      'CRITICAL RULE: Only recommend products that can be sourced from UK-based warehouses. Never suggest AliExpress, CJ Dropshipping, or any supplier shipping from China or outside the UK/EU. UK buyers expect 2-5 day delivery - overseas shipping destroys eBay feedback and listing rank.\n' +
       'Preferred source platforms: Syncee (filter by UK warehouse) and Avasam (all suppliers are UK-based).\n' +
-      'You MUST respond with ONLY a raw JSON object — no markdown, no backticks, no explanation, no preamble.\n' +
+      'You MUST respond with ONLY a raw JSON object - no markdown, no backticks, no explanation, no preamble.\n' +
       'Start your response with { and end with }.\n' +
       'Return exactly this structure:\n' +
       '{\n  "niches": [\n    {\n' +
@@ -258,23 +258,23 @@ async function runFreeAnalysis(q) {
 
     document.getElementById('met-opps').textContent        = opps.length;
     document.getElementById('met-avoid').textContent       = avoid.length;
-    document.getElementById('met-best-margin').textContent = bestMargin ? ('~' + bestMargin + '%') : '—';
+    document.getElementById('met-best-margin').textContent = bestMargin ? ('~' + bestMargin + '%') : '-';
 
     const cards = document.getElementById('opp-cards');
     if (!opps.length) {
       cards.innerHTML = '<p style="font-size:13px;color:var(--text-secondary)">No clear low-competition opportunities found. Try a broader or different niche.</p>';
     } else {
       cards.innerHTML = opps.map(function(n, i) {
-        const rankLabel    = i === 0 ? '🏆 Top pick' : i === 1 ? '2nd' : i === 2 ? '3rd' : ('#' + (i + 1));
+        const rankLabel    = i === 0 ? ' Top pick' : i === 1 ? '2nd' : i === 2 ? '3rd' : ('#' + (i + 1));
         const compClass    = n.competition === 'Low' ? 'pill-green' : n.competition === 'Medium' ? 'pill-amber' : 'pill-gray';
-        const price        = n.avg_price       ? ('£' + parseFloat(n.avg_price).toFixed(2))       : '—';
-        const sold         = n.sold_30d        ? (n.sold_30d + ' sold/mo')                        : '—';
-        const active       = n.active_listings ? (n.active_listings + ' active')                  : '—';
+        const price        = n.avg_price       ? ('' + parseFloat(n.avg_price).toFixed(2))       : '-';
+        const sold         = n.sold_30d        ? (n.sold_30d + ' sold/mo')                        : '-';
+        const active       = n.active_listings ? (n.active_listings + ' active')                  : '-';
         const score        = n.opportunity_score || '?';
-        const buyCost      = n.supplier_cost    ? ('£' + parseFloat(n.supplier_cost).toFixed(2))  : '—';
-        const sellPrice    = n.ebay_sell_price  ? ('£' + parseFloat(n.ebay_sell_price).toFixed(2)): '—';
-        const profit       = (n.profit_after_fees != null) ? ('£' + parseFloat(n.profit_after_fees).toFixed(2)) : '—';
-        const marginPct    = n.margin_pct       ? (Math.round(n.margin_pct) + '%')                : '—';
+        const buyCost      = n.supplier_cost    ? ('' + parseFloat(n.supplier_cost).toFixed(2))  : '-';
+        const sellPrice    = n.ebay_sell_price  ? ('' + parseFloat(n.ebay_sell_price).toFixed(2)): '-';
+        const profit       = (n.profit_after_fees != null) ? ('' + parseFloat(n.profit_after_fees).toFixed(2)) : '-';
+        const marginPct    = n.margin_pct       ? (Math.round(n.margin_pct) + '%')                : '-';
         const platform     = escHtml(n.source_platform || 'Syncee');
         const synceeSearch = escHtml(n.syncee_search  || n.name);
         const sourceTip    = escHtml(n.source_tip     || '');
@@ -294,9 +294,9 @@ async function runFreeAnalysis(q) {
           '</div>' +
           '<p class="opp-reason">' + escHtml(n.reason || '') + '</p>' +
 
-          /* ── Pricing breakdown ── */
+          /* - Pricing breakdown - */
           '<div style="margin:.75rem 0;padding:.65rem .75rem;background:var(--bg-secondary,#f8f9fa);border-radius:6px;font-size:13px">' +
-          '<div style="font-weight:600;margin-bottom:.4rem;color:var(--text-primary)">💰 Buy / Sell breakdown</div>' +
+          '<div style="font-weight:600;margin-bottom:.4rem;color:var(--text-primary)"> Buy / Sell breakdown</div>' +
           '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:.25rem .5rem;color:var(--text-secondary)">' +
           '<div><span style="font-size:11px;display:block">Buy price</span><strong style="color:var(--danger,#dc2626)">' + buyCost + '</strong></div>' +
           '<div><span style="font-size:11px;display:block">eBay sell</span><strong style="color:var(--success,#16a34a)">' + sellPrice + '</strong></div>' +
@@ -305,18 +305,18 @@ async function runFreeAnalysis(q) {
           '</div>' +
           '</div>' +
 
-          /* ── Sourcing info ── */
+          /* - Sourcing info - */
           '<div style="margin-bottom:.75rem;padding:.65rem .75rem;border:1px solid var(--border,#e5e7eb);border-radius:6px;font-size:13px">' +
           '<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.35rem">' +
-          '<span style="font-weight:600;color:var(--text-primary)">📦 Source on</span>' +
+          '<span style="font-weight:600;color:var(--text-primary)"> Source on</span>' +
           '<span class="pill ' + platformClass + '" style="font-size:11px">' + platform + '</span>' +
           '</div>' +
           '<div style="margin-bottom:.3rem"><span style="color:var(--text-secondary);font-size:11px">Search term: </span>' +
           '<code style="background:var(--bg-secondary,#f1f5f9);padding:1px 5px;border-radius:3px;font-size:12px">' + synceeSearch + '</code></div>' +
-          (sourceTip ? '<div style="color:var(--text-secondary);font-size:12px;margin-top:.3rem">💡 ' + sourceTip + '</div>' : '') +
+          (sourceTip ? '<div style="color:var(--text-secondary);font-size:12px;margin-top:.3rem"> ' + sourceTip + '</div>' : '') +
           '</div>' +
 
-          '<button class="btn btn-sm" onclick="prefillListing(' + "'" + nameSafe.replace(/'/g, "\\'") + "'" + ', ' + "'" + priceSafe + "'" + ')">Create listing →</button>' +
+          '<button class="btn btn-sm" onclick="prefillListing(' + "'" + nameSafe.replace(/'/g, "\\'") + "'" + ', ' + "'" + priceSafe + "'" + ')">Create listing -></button>' +
           '</div>';
       }).join('');
     }
@@ -324,7 +324,7 @@ async function runFreeAnalysis(q) {
     const avoidEl = document.getElementById('avoid-list');
     avoidEl.innerHTML = avoid.length
       ? avoid.map(function(n) {
-          return '<div class="avoid-item"><strong>' + escHtml(n.name) + '</strong> — ' + escHtml(n.reason || 'High competition') + '</div>';
+          return '<div class="avoid-item"><strong>' + escHtml(n.name) + '</strong> - ' + escHtml(n.reason || 'High competition') + '</div>';
         }).join('')
       : '<p style="font-size:13px;color:var(--text-secondary)">No products flagged to avoid.</p>';
 
@@ -355,9 +355,9 @@ function copyResults() {
     .catch(function() { alert('Copy failed. Try manually.'); });
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-TAB 2 — LISTING CREATOR
-═══════════════════════════════════════════════════════════════════════════ */
+/* -
+TAB 2 - LISTING CREATOR
+- */
 
 function prefillListing(name, price) {
   switchTab('listing', document.querySelector('.tab:nth-child(2)'));
@@ -380,11 +380,11 @@ async function runListing() {
 
   try {
     const SYSTEM = 'You are an expert eBay UK listing copywriter.\n' +
-      'You MUST respond with ONLY a raw JSON object — no markdown, no backticks, no explanation.\n' +
+      'You MUST respond with ONLY a raw JSON object - no markdown, no backticks, no explanation.\n' +
       'Start with { and end with }.';
 
     const userMsg = 'Create an eBay UK listing for: "' + product + '"\n' +
-      (cost     ? ('Cost price: £' + cost + '\n')       : '') +
+      (cost     ? ('Cost price: ' + cost + '\n')       : '') +
       (cat      ? ('Category: ' + cat + '\n')           : '') +
       (features ? ('Key features: ' + features + '\n')  : '') +
       '\nReturn JSON:\n' +
@@ -418,7 +418,7 @@ async function runListing() {
     }
     if (tagsEl && parsed.keywords) tagsEl.textContent = parsed.keywords.join(', ');
     if (priceEl && parsed.recommended_price) {
-      priceEl.textContent = '£' + Number(parsed.recommended_price).toFixed(2);
+      priceEl.textContent = '' + Number(parsed.recommended_price).toFixed(2);
     }
     if (marginEl && cost && parsed.recommended_price) {
       const margin = ((parsed.recommended_price - parseFloat(cost)) / parsed.recommended_price * 100).toFixed(0);
@@ -436,9 +436,9 @@ async function runListing() {
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-IMAGE SECTION — supplier URL paste & select
-═══════════════════════════════════════════════════════════════════════════ */
+/* -
+IMAGE SECTION - supplier URL paste & select
+- */
 
 let _selectedImages = []; // { url, filename }
 let _currentImages  = [];
@@ -480,7 +480,7 @@ function renderImageGrid() {
   grid.innerHTML = _currentImages.map(function(img, i) {
     const alreadySelected = _selectedImages.some(function(s) { return s.filename === img.filename; });
     return '<div class="img-tile' + (alreadySelected ? ' img-tile--selected' : '') + '" id="imgtile-' + i + '" onclick="toggleImageSelect(' + i + ')" data-url="' + escHtml(img.url) + '" data-filename="' + escHtml(img.filename) + '">' +
-      '<img src="' + escHtml(img.thumb) + '" alt="Product image ' + (i + 1) + '" loading="lazy" onerror="this.src='data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'80\' height=\'80\'><rect width=\'80\' height=\'80\' fill=\'%23eee\'/><text x=\'50%\' y=\'50%\' dominant-baseline=\'middle\' text-anchor=\'middle\' font-size=\'11\' fill=\'%23999\'>Error</text></svg>'" />' +
+      '<img src="' + escHtml(img.thumb) + '" alt="Product image ' + (i + 1) + '" loading="lazy" onerror="this.parentElement.style.display=\'none\'" />' +
       '<div class="img-tile-check">' +
       '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
       '</div>' +
@@ -526,17 +526,7 @@ function updateSelectedPanel() {
   }).join('');
 }
 
-
-  panel.classList.remove('hidden');
-  listEl.innerHTML = _selectedImages.map(function(img, i) {
-    return '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">' +
-      '<span>' + (i + 1) + '. ' + escHtml(img.filename) + '</span>' +
-      '<a class="btn btn-sm" href="' + escHtml(img.url) + '" download="' + escHtml(img.filename) + '" target="_blank" style="font-size:11px;padding:2px 8px">⬇ Download</a>' +
-      '</div>';
-  }).join('');
-}
-
-/* ─── Copy helpers ─────────────────────────────────────────────────────── */
+/* - Copy helpers - */
 function copyEl(id) {
   const el = document.getElementById(id);
   if (!el) return;
@@ -545,9 +535,9 @@ function copyEl(id) {
     .catch(function() { alert('Copy failed. Try manually.'); });
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-TAB 3 — ORDER TRACKER
-═══════════════════════════════════════════════════════════════════════════ */
+/* -
+TAB 3 - ORDER TRACKER
+- */
 
 const ORDERS_KEY = 'dd_orders';
 
@@ -575,14 +565,14 @@ function renderOrders() {
       const sc = statusClass[o.status] || 'pill-gray';
       return '<div class="order-card" style="border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:.75rem">' +
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">' +
-        '<strong>' + escHtml(o.oid || '—') + '</strong>' +
-        '<span class="pill ' + sc + '">' + escHtml(o.status || '—') + '</span>' +
+        '<strong>' + escHtml(o.oid || '-') + '</strong>' +
+        '<span class="pill ' + sc + '">' + escHtml(o.status || '-') + '</span>' +
         '</div>' +
         '<div style="font-size:13px;color:var(--text-secondary)">' +
-        '<div>Item: ' + escHtml(o.item || '—') + '</div>' +
-        '<div>Buyer: ' + escHtml(o.buyer || '—') + '</div>' +
-        '<div>Sale: ' + (o.sale ? '£' + parseFloat(o.sale).toFixed(2) : '—') +
-        ' &nbsp; Cost: ' + (o.cost ? '£' + parseFloat(o.cost).toFixed(2) : '—') + '</div>' +
+        '<div>Item: ' + escHtml(o.item || '-') + '</div>' +
+        '<div>Buyer: ' + escHtml(o.buyer || '-') + '</div>' +
+        '<div>Sale: ' + (o.sale ? '' + parseFloat(o.sale).toFixed(2) : '-') +
+        ' &nbsp; Cost: ' + (o.cost ? '' + parseFloat(o.cost).toFixed(2) : '-') + '</div>' +
         '</div>' +
         '<div style="margin-top:.5rem;display:flex;gap:.5rem">' +
         '<select onchange="updateOrderStatus(' + "'" + o._key + "'" + ', this.value)" style="font-size:12px;padding:2px 4px">' +
@@ -611,7 +601,7 @@ function renderOrders() {
   const statProfit = document.getElementById('stat-profit');
   const statMargin = document.getElementById('stat-margin');
   if (statOrders) statOrders.textContent = total;
-  if (statProfit) statProfit.textContent = '£' + profit.toFixed(2);
+  if (statProfit) statProfit.textContent = '' + profit.toFixed(2);
   if (statMargin) statMargin.textContent = (isNaN(avgMargin) ? 0 : avgMargin) + '%';
 }
 
@@ -658,9 +648,9 @@ function saveOrder() {
 
 renderOrders();
 
-/* ═══════════════════════════════════════════════════════════════════════════
-TAB 4 — SUPPLIER WORKFLOW
-═══════════════════════════════════════════════════════════════════════════ */
+/* -
+TAB 4 - SUPPLIER WORKFLOW
+- */
 
 async function runSupplier() {
   const product = (document.getElementById('sup-product') ? document.getElementById('sup-product').value.trim() : '');
