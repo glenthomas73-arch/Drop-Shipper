@@ -3,7 +3,8 @@
 /* ─── Constants ─────────────────────────────────────────────────────────── */
 const API_URL   = 'https://api.anthropic.com/v1/messages';
 const API_MODEL = 'claude-sonnet-4-6';
-const KEY_NAME  = 'dd_api_key';
+const KEY_NAME        = 'dd_api_key';
+const PEXELS_KEY_NAME = 'dd_pexels_key';
 
 /* ─── API key helpers ───────────────────────────────────────────────────── */
 function getKey()    { return localStorage.getItem(KEY_NAME); }
@@ -16,6 +17,25 @@ function requireKey() {
   if (!k) throw new Error('No API key provided.');
   saveKey(k);
   return k;
+}
+
+function getPexelsKey()   { return localStorage.getItem(PEXELS_KEY_NAME); }
+function savePexelsKey(k) { localStorage.setItem(PEXELS_KEY_NAME, k.trim()); }
+
+function requirePexelsKey() {
+  let k = getPexelsKey();
+  if (k) return k;
+  k = prompt('Enter your Pexels API key (free at pexels.com/api — stored locally only):');
+  if (!k) throw new Error('No Pexels API key provided.');
+  savePexelsKey(k);
+  return k;
+}
+
+function resetPexelsKey() {
+  localStorage.removeItem(PEXELS_KEY_NAME);
+  const k = prompt('Enter new Pexels API key (free at pexels.com/api):');
+  if (k) { savePexelsKey(k); showToast('Pexels API key saved'); searchImages(); }
+  else showToast('Pexels key cleared — images will prompt on next search');
 }
 
 /* ─── Core Claude call ──────────────────────────────────────────────────── */
@@ -438,8 +458,8 @@ async function runListing() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-IMAGE SEARCH — fetches product images from Unsplash (free, no key needed)
-with fallback search terms generated from the product name
+IMAGE SEARCH — fetches product images from Pexels (free API key required)
+Get a free key at pexels.com/api — stored in localStorage as dd_pexels_key
 ═══════════════════════════════════════════════════════════════════════════ */
 
 let _selectedImages = []; // { url, thumb, filename }
@@ -465,34 +485,60 @@ async function searchImages() {
     .replace(/\b(uk|ebay|listing|for sale|brand new|new)\b/gi, '')
     .trim();
 
-  // Unsplash source — free, no API key, returns random relevant images
-  // We use different seeds per page to get fresh images
-  const images = [];
-  const seeds  = [query, query + ' product', query + ' white background', query + ' closeup', query + ' lifestyle', query + ' detail'];
+  // Pexels API — free, requires a free API key from pexels.com/api
+  let pexelsKey;
+  try { pexelsKey = requirePexelsKey(); } catch(e) {
+    if (loadingEl) { loadingEl.style.display = 'none'; }
+    if (refreshBtn) refreshBtn.disabled = false;
+    grid.innerHTML = '<p style="color:var(--text-secondary);font-size:13px;padding:.5rem">No Pexels API key — images unavailable. Get a free key at <a href="https://www.pexels.com/api/" target="_blank">pexels.com/api</a> and reload.</p>';
+    return;
+  }
 
-  for (let i = 0; i < 6; i++) {
-    const seed    = encodeURIComponent(seeds[i % seeds.length] + (_imgSearchPage > 1 ? ' ' + _imgSearchPage + i : ''));
-    const thumbUrl = 'https://source.unsplash.com/400x400/?' + seed;
-    const fullUrl  = 'https://source.unsplash.com/800x800/?' + seed;
-    const filename = product.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').slice(0, 40) + '-' + (i + 1) + '.jpg';
-    images.push({ thumb: thumbUrl, url: fullUrl, filename: filename });
+  const images = [];
+  try {
+    const perPage = 12;
+    const res = await fetch(
+      'https://api.pexels.com/v1/search?query=' + encodeURIComponent(query) + '&per_page=' + perPage + '&page=' + _imgSearchPage,
+      { headers: { Authorization: pexelsKey } }
+    );
+    if (!res.ok) throw new Error('Pexels API error ' + res.status);
+    const data = await res.json();
+    const baseFilename = product.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').slice(0, 40);
+    (data.photos || []).forEach(function(photo, i) {
+      images.push({
+        thumb:    photo.src.medium,
+        url:      photo.src.large,
+        filename: baseFilename + '-' + ((_imgSearchPage - 1) * perPage + i + 1) + '.jpg',
+        credit:   photo.photographer
+      });
+    });
+  } catch(err) {
+    if (loadingEl) { loadingEl.style.display = 'none'; }
+    if (refreshBtn) refreshBtn.disabled = false;
+    grid.innerHTML = '<p style="color:var(--text-secondary);font-size:13px;padding:.5rem">Image search failed: ' + escHtml(err.message) + '. Check your Pexels API key in settings.</p>';
+    return;
   }
 
   _imgSearchPage++;
 
   // Render grid
-  grid.innerHTML = images.map(function(img, i) {
-    const alreadySelected = _selectedImages.some(function(s) { return s.filename === img.filename; });
-    return '<div class="img-tile' + (alreadySelected ? ' img-tile--selected' : '') + '" id="imgtile-' + i + '" onclick="toggleImageSelect(' + i + ')" data-url="' + escHtml(img.url) + '" data-thumb="' + escHtml(img.thumb) + '" data-filename="' + escHtml(img.filename) + '">' +
-      '<img src="' + escHtml(img.thumb) + '" alt="' + escHtml(query) + '" loading="lazy" onerror="this.parentElement.style.display=\'none\'" />' +
-      '<div class="img-tile-check">' +
-      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
-      '</div>' +
-      '<a class="img-tile-dl" href="' + escHtml(img.url) + '" download="' + escHtml(img.filename) + '" target="_blank" onclick="event.stopPropagation()" title="Download">' +
-      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
-      '</a>' +
-      '</div>';
-  }).join('');
+  if (images.length === 0) {
+    grid.innerHTML = '<p style="color:var(--text-secondary);font-size:13px;padding:.5rem">No images found for "' + escHtml(query) + '". Try a different product name.</p>';
+  } else {
+    grid.innerHTML = images.map(function(img, i) {
+      const alreadySelected = _selectedImages.some(function(s) { return s.filename === img.filename; });
+      return '<div class="img-tile' + (alreadySelected ? ' img-tile--selected' : '') + '" id="imgtile-' + i + '" onclick="toggleImageSelect(' + i + ')" data-url="' + escHtml(img.url) + '" data-thumb="' + escHtml(img.thumb) + '" data-filename="' + escHtml(img.filename) + '">' +
+        '<img src="' + escHtml(img.thumb) + '" alt="' + escHtml(query) + '" loading="lazy" onerror="this.parentElement.style.display=\'none\'" />' +
+        '<div class="img-tile-check">' +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
+        '</div>' +
+        (img.credit ? '<div style="position:absolute;bottom:22px;left:0;right:0;font-size:9px;color:#fff;background:rgba(0,0,0,.45);padding:1px 4px;text-align:center;pointer-events:none;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">📷 ' + escHtml(img.credit) + '</div>' : '') +
+        '<a class="img-tile-dl" href="' + escHtml(img.url) + '" download="' + escHtml(img.filename) + '" target="_blank" onclick="event.stopPropagation()" title="Download">' +
+        '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
+        '</a>' +
+        '</div>';
+    }).join('');
+  }
 
   _currentImages = images;
 
