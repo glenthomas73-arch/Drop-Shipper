@@ -4,7 +4,6 @@
 const API_URL   = 'https://api.anthropic.com/v1/messages';
 const API_MODEL = 'claude-sonnet-4-6';
 const KEY_NAME        = 'dd_api_key';
-const PEXELS_KEY_NAME = 'dd_pexels_key';
 
 /* ─── API key helpers ───────────────────────────────────────────────────── */
 function getKey()    { return localStorage.getItem(KEY_NAME); }
@@ -19,41 +18,6 @@ function requireKey() {
   return k;
 }
 
-function getPexelsKey()   { return localStorage.getItem(PEXELS_KEY_NAME); }
-function savePexelsKey(k) { localStorage.setItem(PEXELS_KEY_NAME, k.trim()); }
-
-function requirePexelsKey() {
-  const k = getPexelsKey();
-  if (k) return k;
-  return null; // signals that key entry UI should be shown
-}
-
-function resetPexelsKey() {
-  localStorage.removeItem(PEXELS_KEY_NAME);
-  showPexelsKeyUI();
-}
-
-function showPexelsKeyUI() {
-  const grid = document.getElementById('lst-img-grid');
-  if (!grid) return;
-  grid.innerHTML =
-    '<div style="padding:.75rem;background:var(--bg-secondary,#f8f9fa);border-radius:8px;font-size:13px">' +
-    '<p style="margin:0 0 .5rem;color:var(--text-primary);font-weight:600">🔑 Pexels API key needed for images</p>' +
-    '<p style="margin:0 0 .75rem;color:var(--text-secondary)">Free key at <a href="https://www.pexels.com/api/" target="_blank">pexels.com/api</a> — takes 1 minute, instant approval.</p>' +
-    '<div style="display:flex;gap:6px">' +
-    '<input id="pexels-key-input" type="text" placeholder="Paste your Pexels API key here" style="flex:1;padding:6px 10px;border:1px solid var(--border,#ddd);border-radius:6px;font-size:13px;background:var(--bg-primary,#fff);color:var(--text-primary)" />' +
-    '<button class="btn btn-primary btn-sm" onclick="savePexelsKeyFromUI()" style="white-space:nowrap">Save & load images</button>' +
-    '</div>' +
-    '</div>';
-}
-
-function savePexelsKeyFromUI() {
-  const input = document.getElementById('pexels-key-input');
-  if (!input || !input.value.trim()) { showToast('Please paste your Pexels API key'); return; }
-  savePexelsKey(input.value.trim());
-  showToast('Pexels key saved!');
-  searchImages();
-}
 
 /* ─── Core Claude call ──────────────────────────────────────────────────── */
 async function claude(system, userMsg, maxTokens = 1000) {
@@ -463,8 +427,6 @@ async function runListing() {
 
     show('lst-result');
 
-    // Auto-search images after listing is generated
-    searchImages();
 
   } catch (e) {
     alert('Error: ' + e.message);
@@ -475,103 +437,67 @@ async function runListing() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-IMAGE SEARCH — fetches product images from Pexels (free API key required)
-Get a free key at pexels.com/api — stored in localStorage as dd_pexels_key
+IMAGE SECTION — supplier URL paste & select
 ═══════════════════════════════════════════════════════════════════════════ */
 
-let _selectedImages = []; // { url, thumb, filename }
-let _imgSearchPage  = 1;
+let _selectedImages = []; // { url, filename }
+let _currentImages  = [];
 
-async function searchImages() {
-  const product = (document.getElementById('lst-product') && document.getElementById('lst-product').value || '').trim();
-  if (!product) return;
+function loadSupplierImages() {
+  const textarea = document.getElementById('supplier-img-urls');
+  const grid     = document.getElementById('lst-img-grid');
+  if (!textarea || !grid) return;
 
-  const grid      = document.getElementById('lst-img-grid');
-  const loadingEl = document.getElementById('lst-img-loading');
-  const refreshBtn = document.getElementById('img-refresh-btn');
+  const urls = textarea.value.split('
+')
+    .map(function(u) { return u.trim(); })
+    .filter(function(u) { return u.length > 0; });
 
-  if (!grid) return;
+  if (urls.length === 0) { showToast('Paste at least one image URL'); return; }
 
-  // Show loading
-  if (loadingEl) { loadingEl.style.display = 'flex'; loadingEl.classList.remove('hidden'); }
-  if (refreshBtn) refreshBtn.disabled = true;
+  _currentImages = urls.map(function(url, i) {
+    const ext      = url.split('?')[0].split('.').pop().toLowerCase() || 'jpg';
+    const filename = 'product-image-' + (i + 1) + '.' + (ext.length <= 4 ? ext : 'jpg');
+    return { url: url, thumb: url, filename: filename };
+  });
 
-  // Build search query — clean up product name for image search
-  const query = product
-    .replace(/[£$€]/g, '')
-    .replace(/\b(uk|ebay|listing|for sale|brand new|new)\b/gi, '')
-    .trim();
+  renderImageGrid();
+  showToast(_currentImages.length + ' image' + (_currentImages.length > 1 ? 's' : '') + ' loaded');
+}
 
-  // Pexels API — free, requires a free API key from pexels.com/api
-  const pexelsKey = requirePexelsKey();
-  if (!pexelsKey) {
-    if (loadingEl) { loadingEl.style.display = 'none'; }
-    if (refreshBtn) refreshBtn.disabled = false;
-    showPexelsKeyUI();
-    return;
-  }
-
-  const images = [];
-  try {
-    const perPage = 12;
-    const res = await fetch(
-      'https://api.pexels.com/v1/search?query=' + encodeURIComponent(query) + '&per_page=' + perPage + '&page=' + _imgSearchPage,
-      { headers: { Authorization: pexelsKey } }
-    );
-    if (!res.ok) throw new Error('Pexels API error ' + res.status);
-    const data = await res.json();
-    const baseFilename = product.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').slice(0, 40);
-    (data.photos || []).forEach(function(photo, i) {
-      images.push({
-        thumb:    photo.src.medium,
-        url:      photo.src.large,
-        filename: baseFilename + '-' + ((_imgSearchPage - 1) * perPage + i + 1) + '.jpg',
-        credit:   photo.photographer
-      });
-    });
-  } catch(err) {
-    if (loadingEl) { loadingEl.style.display = 'none'; }
-    if (refreshBtn) refreshBtn.disabled = false;
-    grid.innerHTML = '<p style="color:var(--text-secondary);font-size:13px;padding:.5rem">Image search failed: ' + escHtml(err.message) + '. Check your Pexels API key in settings.</p>';
-    return;
-  }
-
-  _imgSearchPage++;
-
-  // Render grid
-  if (images.length === 0) {
-    grid.innerHTML = '<p style="color:var(--text-secondary);font-size:13px;padding:.5rem">No images found for "' + escHtml(query) + '". Try a different product name.</p>';
-  } else {
-    grid.innerHTML = images.map(function(img, i) {
-      const alreadySelected = _selectedImages.some(function(s) { return s.filename === img.filename; });
-      return '<div class="img-tile' + (alreadySelected ? ' img-tile--selected' : '') + '" id="imgtile-' + i + '" onclick="toggleImageSelect(' + i + ')" data-url="' + escHtml(img.url) + '" data-thumb="' + escHtml(img.thumb) + '" data-filename="' + escHtml(img.filename) + '">' +
-        '<img src="' + escHtml(img.thumb) + '" alt="' + escHtml(query) + '" loading="lazy" onerror="this.parentElement.style.display=\'none\'" />' +
-        '<div class="img-tile-check">' +
-        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
-        '</div>' +
-        (img.credit ? '<div style="position:absolute;bottom:22px;left:0;right:0;font-size:9px;color:#fff;background:rgba(0,0,0,.45);padding:1px 4px;text-align:center;pointer-events:none;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">📷 ' + escHtml(img.credit) + '</div>' : '') +
-        '<a class="img-tile-dl" href="' + escHtml(img.url) + '" download="' + escHtml(img.filename) + '" target="_blank" onclick="event.stopPropagation()" title="Download">' +
-        '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
-        '</a>' +
-        '</div>';
-    }).join('');
-  }
-
-  _currentImages = images;
-
-  if (loadingEl) { loadingEl.style.display = 'none'; }
-  if (refreshBtn) refreshBtn.disabled = false;
+function clearSupplierImages() {
+  _currentImages  = [];
+  _selectedImages = [];
+  const textarea = document.getElementById('supplier-img-urls');
+  const grid     = document.getElementById('lst-img-grid');
+  if (textarea) textarea.value = '';
+  if (grid)     grid.innerHTML = '';
   updateSelectedPanel();
 }
 
-let _currentImages = [];
+function renderImageGrid() {
+  const grid = document.getElementById('lst-img-grid');
+  if (!grid) return;
+  grid.innerHTML = _currentImages.map(function(img, i) {
+    const alreadySelected = _selectedImages.some(function(s) { return s.filename === img.filename; });
+    return '<div class="img-tile' + (alreadySelected ? ' img-tile--selected' : '') + '" id="imgtile-' + i + '" onclick="toggleImageSelect(' + i + ')" data-url="' + escHtml(img.url) + '" data-filename="' + escHtml(img.filename) + '">' +
+      '<img src="' + escHtml(img.thumb) + '" alt="Product image ' + (i + 1) + '" loading="lazy" onerror="this.src='data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'80\' height=\'80\'><rect width=\'80\' height=\'80\' fill=\'%23eee\'/><text x=\'50%\' y=\'50%\' dominant-baseline=\'middle\' text-anchor=\'middle\' font-size=\'11\' fill=\'%23999\'>Error</text></svg>'" />' +
+      '<div class="img-tile-check">' +
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
+      '</div>' +
+      '<a class="img-tile-dl" href="' + escHtml(img.url) + '" download="' + escHtml(img.filename) + '" target="_blank" onclick="event.stopPropagation()" title="Download">' +
+      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
+      '</a>' +
+      '</div>';
+  }).join('');
+}
 
 function toggleImageSelect(i) {
   const img  = _currentImages[i];
   if (!img) return;
   const tile = document.getElementById('imgtile-' + i);
   const idx  = _selectedImages.findIndex(function(s) { return s.filename === img.filename; });
-  if (idx >= 0) {
+  if (idx > -1) {
     _selectedImages.splice(idx, 1);
     if (tile) tile.classList.remove('img-tile--selected');
   } else {
@@ -583,15 +509,24 @@ function toggleImageSelect(i) {
 }
 
 function updateSelectedPanel() {
-  const countEl    = document.getElementById('img-selected-count');
-  const panel      = document.getElementById('lst-img-selected');
-  const listEl     = document.getElementById('lst-img-selected-list');
-  const n          = _selectedImages.length;
+  const countEl = document.getElementById('img-selected-count');
+  const panel   = document.getElementById('lst-img-selected');
+  const listEl  = document.getElementById('lst-img-selected-list');
+  const n       = _selectedImages.length;
 
-  if (countEl) countEl.textContent = n ? (n + ' selected') : '';
-
+  if (countEl) countEl.textContent = n ? n + ' selected' : '';
   if (!panel || !listEl) return;
-  if (!n) { panel.classList.add('hidden'); return; }
+  if (n === 0) { panel.classList.add('hidden'); return; }
+
+  panel.classList.remove('hidden');
+  listEl.innerHTML = _selectedImages.map(function(img, i) {
+    return '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">' +
+      '<span>' + (i + 1) + '. ' + escHtml(img.filename) + '</span>' +
+      '<a class="btn btn-sm" href="' + escHtml(img.url) + '" download="' + escHtml(img.filename) + '" target="_blank" style="font-size:11px;padding:2px 8px">&#x2B07; Download</a>' +
+      '</div>';
+  }).join('');
+}
+
 
   panel.classList.remove('hidden');
   listEl.innerHTML = _selectedImages.map(function(img, i) {
