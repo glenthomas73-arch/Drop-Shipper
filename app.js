@@ -205,7 +205,7 @@ async function runFreeAnalysis(q) {
       '- syncee_search: exact search term to type into Syncee to find this product\n' +
       '- source_tip: one sentence practical tip about sourcing this specific product (e.g. filter by UK warehouse, check MOQ, look for branded alternatives)';
 
-    const raw = await claude(SYSTEM, userMsg, 2000);
+    const raw = await claude(SYSTEM, userMsg, 4000);
 
     steps[0].state = 'done'; steps[1].state = 'done'; steps[2].state = 'active';
     setProgress('Scoring opportunities...', steps);
@@ -213,11 +213,26 @@ async function runFreeAnalysis(q) {
     let parsed;
     try {
       parsed = parseJSON(raw);
+      console.log('[DropDash] Raw API response:', raw.substring(0, 500));
+      console.log('[DropDash] Parsed niches sample:', JSON.stringify((parsed.niches || [])[0], null, 2));
       if (Array.isArray(parsed)) parsed = { niches: parsed };
       if (!parsed.niches && typeof parsed === 'object') {
         const firstArr = Object.values(parsed).find(function(v) { return Array.isArray(v); });
         if (firstArr) parsed = { niches: firstArr };
       }
+      /* Back-fill missing pricing fields so cards always render */
+      (parsed.niches || []).forEach(function(n) {
+        if (!n.supplier_cost && n.avg_price) n.supplier_cost = parseFloat((n.avg_price / 3).toFixed(2));
+        if (!n.ebay_sell_price && n.avg_price) n.ebay_sell_price = n.avg_price;
+        if (!n.profit_after_fees && n.ebay_sell_price && n.supplier_cost) {
+          n.profit_after_fees = parseFloat((n.ebay_sell_price - n.supplier_cost - n.ebay_sell_price * 0.13).toFixed(2));
+        }
+        if (!n.margin_pct && n.profit_after_fees && n.ebay_sell_price) {
+          n.margin_pct = Math.round(n.profit_after_fees / n.ebay_sell_price * 100);
+        }
+        if (!n.syncee_search) n.syncee_search = n.name;
+        if (!n.source_platform) n.source_platform = 'Syncee';
+      });
     } catch (e) {
       throw new Error('Could not parse response. Try again.');
     }
