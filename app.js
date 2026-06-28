@@ -461,6 +461,24 @@ document.addEventListener('paste', function(e) {
   }
 });
 
+function pasteAndAddUrl() {
+  if (navigator.clipboard && navigator.clipboard.readText) {
+    navigator.clipboard.readText().then(function(text) {
+      var url = text.trim();
+      if (!url || url.indexOf('http') !== 0) { showToast('Nothing to paste — copy an image URL first'); return; }
+      if (_supplierUrls.indexOf(url) > -1) { showToast('URL already added'); return; }
+      _supplierUrls.push(url);
+      updateSupplierUrlList();
+      buildImageGrid();
+      showToast('Image added (' + _supplierUrls.length + ' total)');
+    }).catch(function() {
+      showToast('Could not read clipboard — try allowing clipboard access');
+    });
+  } else {
+    showToast('Clipboard API not available in this browser');
+  }
+}
+
 function addSupplierUrl() {
   const input = document.getElementById('supplier-url-input');
   if (!input) return;
