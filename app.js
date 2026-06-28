@@ -6,8 +6,8 @@ const API_MODEL = 'claude-sonnet-4-6';
 const KEY_NAME  = 'dd_api_key';
 
 /* ─── API key helpers ───────────────────────────────────────────────────── */
-function getKey() { return localStorage.getItem(KEY_NAME); }
-function saveKey(k) { localStorage.setItem(KEY_NAME, k.trim()); }
+function getKey()    { return localStorage.getItem(KEY_NAME); }
+function saveKey(k)  { localStorage.setItem(KEY_NAME, k.trim()); }
 
 function requireKey() {
   let k = getKey();
@@ -46,559 +46,483 @@ async function claude(system, userMsg, maxTokens = 1000) {
 
 /* ─── Robust JSON parser ────────────────────────────────────────────────── */
 function parseJSON(raw) {
-  // 1. Strip markdown fences
   let clean = raw.replace(/```json|```/gi, '').trim();
-
-  // 2. Try full parse
   try { return JSON.parse(clean); } catch (_) {}
-
-  // 3. Extract first {...} block
   const objMatch = clean.match(/\{[\s\S]*\}/);
   if (objMatch) { try { return JSON.parse(objMatch[0]); } catch (_) {} }
-
-  // 4. Extract first [...] block
   const arrMatch = clean.match(/\[[\s\S]*\]/);
   if (arrMatch) { try { return JSON.parse(arrMatch[0]); } catch (_) {} }
-
-  // 5. Give up
   throw new Error('Could not parse response. Try again.');
 }
 
+/* ─── HTML escape ───────────────────────────────────────────────────────── */
+function escHtml(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/* ─── Show / hide helper (handles .hidden class + inline style) ─────────── */
+function show(id) {
+  const el = document.getElementById(id);
+  if (el) { el.classList.remove('hidden'); el.style.display = ''; }
+}
+function hide(id) {
+  const el = document.getElementById(id);
+  if (el) { el.classList.add('hidden'); }
+}
+
+/* ─── Toast notification ────────────────────────────────────────────────── */
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  if (!toast) return;
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2000);
+}
+
 /* ─── Tab navigation ────────────────────────────────────────────────────── */
-document.querySelectorAll('.tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById(btn.dataset.tab).classList.add('active');
+function switchTab(name, el) {
+  document.querySelectorAll('.panel').forEach(p => {
+    p.classList.remove('active');
+    p.classList.add('hidden');
   });
-});
+  const panel = document.getElementById('panel-' + name);
+  if (panel) { panel.classList.remove('hidden'); panel.classList.add('active'); }
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   TAB 1 — PRODUCT RESEARCH
+TAB 1 — PRODUCT RESEARCH
 ═══════════════════════════════════════════════════════════════════════════ */
 
 let _lastResearchResults = '';
 
 function setProgress(msg, steps) {
-  const bar = document.getElementById('progress-bar');
-  if (!bar) return;
-  const done  = steps.filter(s => s.state === 'done').length;
-  const total = steps.length;
-  const pct   = Math.round((done / total) * 100);
-  bar.style.width = pct + '%';
-  document.getElementById('progress-msg').textContent = msg;
-  steps.forEach(s => {
-    const el = document.getElementById(s.id);
-    if (!el) return;
-    el.className = 'step ' + s.state;
-  });
+  const container = document.getElementById('res-progress');
+  const textEl    = document.getElementById('res-progress-text');
+  const stepsEl   = document.getElementById('res-progress-steps');
+  if (msg === null || msg === false) { hide('res-progress'); return; }
+  show('res-progress');
+  if (textEl) textEl.textContent = msg || 'Processing...';
+  if (steps && stepsEl) {
+    stepsEl.innerHTML = steps.map(s =>
+      '<div class="step-item step-' + (s.state || 'pending') + '" id="' + s.id + '">' +
+      '<span class="step-dot"></span><span>' + escHtml(s.label || '') + '</span></div>'
+    ).join('');
+  }
 }
 
 function buildReportText(niche, niches, opps, avoid) {
-  const lines = [`DropDash Research Report — ${niche}`, '='.repeat(50), ''];
-  lines.push(`Opportunities (${opps.length}):`);
-  opps.forEach((n, i) => {
-    lines.push(`${i + 1}. ${n.name}`);
-    lines.push(`   Price: £${parseFloat(n.avg_price || 0).toFixed(2)}  Sold/mo: ${n.sold_30d || '?'}  Competition: ${n.competition || '?'}`);
-    lines.push(`   ${n.reason || ''}`);
+  const lines = ['DropDash Research Report — ' + niche, '='.repeat(50), ''];
+  lines.push('Opportunities (' + opps.length + '):');
+  opps.forEach(function(n, i) {
+    lines.push((i + 1) + '. ' + n.name);
+    lines.push('   Price: £' + parseFloat(n.avg_price || 0).toFixed(2) + '  Sold/mo: ' + (n.sold_30d || '?') + '  Competition: ' + (n.competition || '?'));
+    lines.push('   ' + (n.reason || ''));
     lines.push('');
   });
   if (avoid.length) {
-    lines.push(`Avoid (${avoid.length}):`);
-    avoid.forEach(n => lines.push(`- ${n.name}: ${n.reason || ''}`));
+    lines.push('Avoid (' + avoid.length + '):');
+    avoid.forEach(function(n) { lines.push('- ' + n.name + ': ' + (n.reason || '')); });
   }
   return lines.join('\n');
 }
 
+/* Quick-pick chips */
+function fillNiche(niche) {
+  const input = document.getElementById('res-query');
+  if (input) { input.value = niche; input.focus(); }
+}
+
+/* Main search — called by onclick="runResearch()" */
+async function runResearch() {
+  const input = document.getElementById('res-query');
+  const q = input ? input.value.trim() : '';
+  if (!q) { alert('Enter a niche to research.'); return; }
+  await runFreeAnalysis(q);
+}
+
+/* Free analysis core */
 async function runFreeAnalysis(q) {
+  const btn     = document.getElementById('res-btn');
+  const btnText = document.getElementById('res-btn-text');
+  if (btn) btn.disabled = true;
+  if (btnText) btnText.textContent = 'Researching...';
+  hide('res-result');
+
   const steps = [
     { id: 'step-1', state: 'active',  label: 'Generating sub-niches' },
     { id: 'step-2', state: 'pending', label: 'Analysing competition' },
     { id: 'step-3', state: 'pending', label: 'Scoring opportunities' },
     { id: 'step-4', state: 'pending', label: 'Building report' },
   ];
-  setProgress('Generating sub-niches…', steps);
+  setProgress('Generating sub-niches...', steps);
 
-  const SYSTEM = `You are an eBay UK dropshipping expert.
-You MUST respond with ONLY a raw JSON object — no markdown, no backticks, no explanation, no preamble.
-Start your response with { and end with }.
-Return exactly this structure:
-{
-  "niches": [
-    {
-      "name": "string",
-      "avg_price": number,
-      "sold_30d": number,
-      "active_listings": number,
-      "competition": "Low|Medium|High",
-      "opportunity_score": number (1-10),
-      "reason": "string (one sentence)"
+  try {
+    const SYSTEM = 'You are an eBay UK dropshipping expert.\n' +
+      'You MUST respond with ONLY a raw JSON object — no markdown, no backticks, no explanation, no preamble.\n' +
+      'Start your response with { and end with }.\n' +
+      'Return exactly this structure:\n' +
+      '{\n  "niches": [\n    {\n' +
+      '      "name": "string",\n' +
+      '      "avg_price": number,\n' +
+      '      "sold_30d": number,\n' +
+      '      "active_listings": number,\n' +
+      '      "competition": "Low|Medium|High",\n' +
+      '      "opportunity_score": number,\n' +
+      '      "reason": "string"\n' +
+      '    }\n  ]\n}';
+
+    const userMsg = 'Research eBay UK dropshipping opportunities for the niche: "' + q + '".\n' +
+      'Return 8-12 specific sub-niches with realistic UK eBay estimates for avg_price (GBP), sold_30d, active_listings, competition, opportunity_score (1-10), and a one-sentence reason.\n' +
+      'High opportunity_score means low competition + good margin + proven demand.';
+
+    const raw = await claude(SYSTEM, userMsg, 2000);
+
+    steps[0].state = 'done'; steps[1].state = 'done'; steps[2].state = 'active';
+    setProgress('Scoring opportunities...', steps);
+
+    let parsed;
+    try {
+      parsed = parseJSON(raw);
+      if (Array.isArray(parsed)) parsed = { niches: parsed };
+      if (!parsed.niches && typeof parsed === 'object') {
+        const firstArr = Object.values(parsed).find(function(v) { return Array.isArray(v); });
+        if (firstArr) parsed = { niches: firstArr };
+      }
+    } catch (e) {
+      throw new Error('Could not parse response. Try again.');
     }
-  ]
-}`;
 
-  const userMsg = `Research eBay UK dropshipping opportunities for the niche: "${q}".
-Return 8-12 specific sub-niches with realistic UK eBay estimates for avg_price (GBP), sold_30d, active_listings, competition, opportunity_score (1-10), and a one-sentence reason.
-High opportunity_score means low competition + good margin + proven demand.`;
+    const niches = parsed.niches || [];
+    if (!niches.length) throw new Error('No data returned. Try a different niche.');
 
-  const raw = await claude(SYSTEM, userMsg, 2000);
+    niches.sort(function(a, b) { return (b.opportunity_score || 0) - (a.opportunity_score || 0); });
+    const opps  = niches.filter(function(n) { return (n.opportunity_score || 0) >= 6; });
+    const avoid = niches.filter(function(n) { return (n.opportunity_score || 0) < 4; });
+    const bestMargin = opps.length
+      ? Math.round(((opps[0].avg_price - opps[0].avg_price * 0.35) / opps[0].avg_price) * 100)
+      : 0;
 
-  steps[0].state = 'done';
-  steps[1].state = 'done';
-  steps[2].state = 'active';
-  setProgress('Scoring opportunities…', steps);
+    steps[2].state = 'done'; steps[3].state = 'done';
+    setProgress('Done', steps);
 
-  let parsed;
-  try {
-    parsed = parseJSON(raw);
-    // Handle if top-level is an array
-    if (Array.isArray(parsed)) parsed = { niches: parsed };
-    // Handle if niches key is missing but we got objects
-    if (!parsed.niches && typeof parsed === 'object') {
-      const firstArr = Object.values(parsed).find(v => Array.isArray(v));
-      if (firstArr) parsed = { niches: firstArr };
+    _lastResearchResults = buildReportText(q, niches, opps, avoid);
+
+    document.getElementById('met-opps').textContent        = opps.length;
+    document.getElementById('met-avoid').textContent       = avoid.length;
+    document.getElementById('met-best-margin').textContent = bestMargin ? ('~' + bestMargin + '%') : '—';
+
+    const cards = document.getElementById('opp-cards');
+    if (!opps.length) {
+      cards.innerHTML = '<p style="font-size:13px;color:var(--text-secondary)">No clear low-competition opportunities found. Try a broader or different niche.</p>';
+    } else {
+      cards.innerHTML = opps.map(function(n, i) {
+        const rankLabel = i === 0 ? '🏆 Top pick' : i === 1 ? '2nd' : i === 2 ? '3rd' : ('#' + (i + 1));
+        const compClass = n.competition === 'Low' ? 'pill-green' : n.competition === 'Medium' ? 'pill-amber' : 'pill-gray';
+        const price     = n.avg_price ? ('£' + parseFloat(n.avg_price).toFixed(2)) : '—';
+        const sold      = n.sold_30d  ? (n.sold_30d + ' sold/mo') : '—';
+        const active    = n.active_listings ? (n.active_listings + ' active') : '—';
+        const score     = n.opportunity_score || '?';
+        const nameSafe  = escHtml(n.name);
+        const priceSafe = escHtml(price);
+        return '<div class="opp-card ' + (i === 0 ? 'top-pick' : '') + '">' +
+          '<div class="opp-card-header">' +
+          '<span class="rank-label">' + rankLabel + '</span>' +
+          '<span class="score-badge">Score: ' + score + '/10</span>' +
+          '</div>' +
+          '<h3>' + nameSafe + '</h3>' +
+          '<div class="opp-stats">' +
+          '<span>' + price + '</span><span>' + sold + '</span><span>' + active + '</span>' +
+          '<span class="pill ' + compClass + '">' + (n.competition || '?') + '</span>' +
+          '</div>' +
+          '<p class="opp-reason">' + escHtml(n.reason || '') + '</p>' +
+          '<button class="btn btn-sm" onclick="prefillListing(' + "'" + nameSafe.replace(/'/g, "\\'") + "'" + ', ' + "'" + priceSafe + "'" + ')">Create listing →</button>' +
+          '</div>';
+      }).join('');
     }
-  } catch (e) {
-    throw new Error('Could not parse response. Try again.');
-  }
 
-  const niches = parsed.niches || [];
-  if (!niches.length) throw new Error('No data returned. Try a different niche.');
+    const avoidEl = document.getElementById('avoid-list');
+    avoidEl.innerHTML = avoid.length
+      ? avoid.map(function(n) {
+          return '<div class="avoid-item"><strong>' + escHtml(n.name) + '</strong> — ' + escHtml(n.reason || 'High competition') + '</div>';
+        }).join('')
+      : '<p style="font-size:13px;color:var(--text-secondary)">No products flagged to avoid.</p>';
 
-  niches.sort((a, b) => (b.opportunity_score || 0) - (a.opportunity_score || 0));
+    show('res-result');
 
-  const opps    = niches.filter(n => (n.opportunity_score || 0) >= 6);
-  const avoid   = niches.filter(n => (n.opportunity_score || 0) < 4);
-  const bestMargin = opps.length
-    ? Math.round(((opps[0].avg_price - opps[0].avg_price * 0.35) / opps[0].avg_price) * 100)
-    : 0;
-
-  steps[2].state = 'done';
-  steps[3].state = 'done';
-  setProgress('Done', steps);
-
-  _lastResearchResults = buildReportText(q, niches, opps, avoid);
-
-  // Metrics
-  document.getElementById('met-opps').textContent        = opps.length;
-  document.getElementById('met-avoid').textContent       = avoid.length;
-  document.getElementById('met-best-margin').textContent = bestMargin ? `~${bestMargin}%` : '—';
-
-  // Opportunity cards
-  const cards = document.getElementById('opp-cards');
-  if (!opps.length) {
-    cards.innerHTML = '<div class="card"><p style="font-size:13px;color:var(--text-secondary)">No clear low-competition opportunities found. Try a broader or different niche.</p></div>';
-  } else {
-    cards.innerHTML = opps.map((n, i) => {
-      const rankLabel = i === 0 ? '🏆 Top pick' : i === 1 ? '2nd' : i === 2 ? '3rd' : `#${i + 1}`;
-      const compClass = n.competition === 'Low' ? 'pill-green' : n.competition === 'Medium' ? 'pill-amber' : 'pill-gray';
-      const price     = n.avg_price ? `£${parseFloat(n.avg_price).toFixed(2)}` : '—';
-      const sold      = n.sold_30d ? `${n.sold_30d} sold/mo` : '—';
-      const active    = n.active_listings ? `${n.active_listings} active` : '—';
-      const score     = n.opportunity_score || '?';
-      return `
-        <div class="opp-card ${i === 0 ? 'top-pick' : ''}">
-          <div class="opp-card-header">
-            <span class="rank-label">${rankLabel}</span>
-            <span class="score-badge">Score: ${score}/10</span>
-          </div>
-          <h3>${n.name}</h3>
-          <div class="opp-stats">
-            <span>${price}</span>
-            <span>${sold}</span>
-            <span>${active}</span>
-            <span class="pill ${compClass}">${n.competition || '?'}</span>
-          </div>
-          <p class="opp-reason">${n.reason || ''}</p>
-          <button class="btn-secondary btn-sm" onclick="prefillListing('${escHtml(n.name)}', '${price}')">
-            Create listing →
-          </button>
-        </div>`;
-    }).join('');
-  }
-
-  // Avoid list
-  const avoidEl = document.getElementById('avoid-list');
-  avoidEl.innerHTML = avoid.length
-    ? avoid.map(n => `<div class="avoid-item"><strong>${n.name}</strong> — ${n.reason || 'High competition'}</div>`).join('')
-    : '<p style="font-size:13px;color:var(--text-secondary)">No products flagged to avoid.</p>';
-
-  document.getElementById('results-section').style.display = 'block';
-}
-
-function escHtml(s) { return (s || '').replace(/'/g, "\\'"); }
-
-// Wire up research button
-document.getElementById('btn-research')?.addEventListener('click', async () => {
-  const q = document.getElementById('research-input')?.value?.trim();
-  if (!q) return alert('Enter a niche to research.');
-
-  const btn = document.getElementById('btn-research');
-  btn.disabled = true;
-  btn.textContent = 'Researching…';
-  document.getElementById('results-section').style.display = 'none';
-  document.getElementById('progress-wrap').style.display   = 'block';
-  document.getElementById('error-msg').style.display       = 'none';
-
-  // Reset steps
-  ['step-1','step-2','step-3','step-4'].forEach((id, i) => {
-    const el = document.getElementById(id);
-    if (el) el.className = 'step ' + (i === 0 ? 'active' : 'pending');
-  });
-
-  try {
-    await runFreeAnalysis(q);
-  } catch (e) {
-    document.getElementById('error-msg').textContent    = e.message;
-    document.getElementById('error-msg').style.display  = 'block';
-  } finally {
-    btn.disabled    = false;
-    btn.textContent = 'Find opportunities';
-    document.getElementById('progress-wrap').style.display = 'none';
-  }
-});
-
-// Live eBay scan
-document.getElementById('btn-live-scan')?.addEventListener('click', async () => {
-  const q = document.getElementById('research-input')?.value?.trim();
-  if (!q) return alert('Enter a niche first.');
-  const confirmed = confirm(
-    '⚠️ Live eBay scan costs ~20p per search (uses more tokens).\n\nProceed?'
-  );
-  if (!confirmed) return;
-
-  const btn = document.getElementById('btn-live-scan');
-  btn.disabled    = true;
-  btn.textContent = 'Scanning…';
-
-  try {
-    // Same as free but instructs Claude to imagine it scraped live data
-    await runFreeAnalysis(q + ' (provide highly specific, realistic 2024 UK eBay market data as if live scraped)');
   } catch (e) {
     alert('Error: ' + e.message);
   } finally {
-    btn.disabled    = false;
-    btn.textContent = '🔍 Live eBay scan (~20p)';
+    if (btn) btn.disabled = false;
+    if (btnText) btnText.textContent = 'Find opportunities';
   }
-});
+}
 
-// Copy report
-document.getElementById('btn-copy-report')?.addEventListener('click', () => {
+/* Live eBay scan */
+async function confirmLiveScan() {
+  const input = document.getElementById('res-query');
+  const q = input ? input.value.trim() : '';
+  if (!q) { alert('Enter a niche first.'); return; }
+  if (!confirm('This will run a live eBay scan costing ~15-20p. Continue?')) return;
+  await runFreeAnalysis(q + ' (provide highly specific, realistic 2024 UK eBay market data as if live scraped)');
+}
+
+/* Copy report */
+function copyResults() {
   if (!_lastResearchResults) return;
   navigator.clipboard.writeText(_lastResearchResults)
-    .then(() => { document.getElementById('btn-copy-report').textContent = 'Copied!'; setTimeout(() => { document.getElementById('btn-copy-report').textContent = 'Copy report'; }, 2000); })
-    .catch(() => alert('Copy failed. Try manually.'));
-});
+    .then(function() { showToast('Report copied!'); })
+    .catch(function() { alert('Copy failed. Try manually.'); });
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   TAB 2 — LISTING CREATOR
+TAB 2 — LISTING CREATOR
 ═══════════════════════════════════════════════════════════════════════════ */
 
 function prefillListing(name, price) {
-  // Switch to listing tab
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-  document.querySelector('[data-tab="tab-listing"]')?.classList.add('active');
-  document.getElementById('tab-listing')?.classList.add('active');
-
-  const el = document.getElementById('listing-product');
+  switchTab('listing', document.querySelector('.tab:nth-child(2)'));
+  const el = document.getElementById('lst-product');
   if (el) el.value = name;
 }
 
-document.getElementById('btn-create-listing')?.addEventListener('click', async () => {
-  const product  = document.getElementById('listing-product')?.value?.trim();
-  const price    = document.getElementById('listing-price')?.value?.trim();
-  const keywords = document.getElementById('listing-keywords')?.value?.trim();
+async function runListing() {
+  const product  = (document.getElementById('lst-product')  && document.getElementById('lst-product').value  || '').trim();
+  const cost     = (document.getElementById('lst-cost')     && document.getElementById('lst-cost').value     || '').trim();
+  const features = (document.getElementById('lst-features') && document.getElementById('lst-features').value || '').trim();
+  const cat      = (document.getElementById('lst-cat')      && document.getElementById('lst-cat').value      || '');
 
-  if (!product) return alert('Enter a product name.');
+  if (!product) { alert('Enter a product name.'); return; }
 
-  const btn = document.getElementById('btn-create-listing');
-  btn.disabled    = true;
-  btn.textContent = 'Creating…';
+  const btn     = document.getElementById('lst-btn');
+  const btnText = document.getElementById('lst-btn-text');
+  if (btn) btn.disabled = true;
+  if (btnText) btnText.textContent = 'Creating...';
 
   try {
-    const SYSTEM = `You are an expert eBay UK listing copywriter.
-You MUST respond with ONLY a raw JSON object — no markdown, no backticks, no explanation.
-Start with { and end with }.`;
+    const SYSTEM = 'You are an expert eBay UK listing copywriter.\n' +
+      'You MUST respond with ONLY a raw JSON object — no markdown, no backticks, no explanation.\n' +
+      'Start with { and end with }.';
 
-    const userMsg = `Create an eBay UK listing for: "${product}"
-${price ? `Selling price: £${price}` : ''}
-${keywords ? `Keywords to include: ${keywords}` : ''}
-
-Return JSON:
-{
-  "title": "eBay title max 80 chars with top keywords",
-  "subtitle": "optional subtitle max 55 chars",
-  "description": "Full HTML description (use <ul>, <strong>, <p> tags). Include: key features, dimensions if relevant, what's in the box, why buy from us.",
-  "item_specifics": { "key": "value" },
-  "category_suggestion": "eBay category name",
-  "recommended_price": number,
-  "keywords": ["keyword1", "keyword2"]
-}`;
+    const userMsg = 'Create an eBay UK listing for: "' + product + '"\n' +
+      (cost     ? ('Cost price: £' + cost + '\n')       : '') +
+      (cat      ? ('Category: ' + cat + '\n')           : '') +
+      (features ? ('Key features: ' + features + '\n')  : '') +
+      '\nReturn JSON:\n' +
+      '{\n' +
+      '  "title": "eBay title max 80 chars with top keywords",\n' +
+      '  "description": "2-3 sentence description highlighting benefits, what is in the box, why buy from us.",\n' +
+      '  "item_specifics": [{"name": "...", "value": "..."}],\n' +
+      '  "category_suggestion": "eBay category name",\n' +
+      '  "recommended_price": 0.00,\n' +
+      '  "keywords": ["keyword1", "keyword2", "keyword3"]\n' +
+      '}';
 
     const raw    = await claude(SYSTEM, userMsg, 2000);
     const parsed = parseJSON(raw);
 
-    document.getElementById('listing-output').style.display = 'block';
-    document.getElementById('out-title').textContent        = parsed.title || '';
-    document.getElementById('out-subtitle').textContent     = parsed.subtitle || '';
-    document.getElementById('out-description').innerHTML    = parsed.description || '';
-    document.getElementById('out-category').textContent     = parsed.category_suggestion || '';
-    document.getElementById('out-price').textContent        = parsed.recommended_price ? `£${parseFloat(parsed.recommended_price).toFixed(2)}` : '';
+    const titleEl   = document.getElementById('lst-title');
+    const descEl    = document.getElementById('lst-desc');
+    const specsEl   = document.getElementById('lst-specifics');
+    const tagsEl    = document.getElementById('lst-tags');
+    const priceEl   = document.getElementById('lst-price');
+    const marginEl  = document.getElementById('lst-margin-note');
+    const charCount = document.getElementById('title-chars');
 
-    const specs = parsed.item_specifics || {};
-    document.getElementById('out-specifics').innerHTML = Object.entries(specs)
-      .map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
+    if (titleEl) titleEl.textContent = parsed.title || '';
+    if (charCount && parsed.title) charCount.textContent = parsed.title.length + '/80';
+    if (descEl) descEl.innerHTML = escHtml(parsed.description || '').replace(/\n/g, '<br>');
+    if (specsEl && Array.isArray(parsed.item_specifics)) {
+      specsEl.innerHTML = parsed.item_specifics.map(function(s) {
+        return '<div><strong>' + escHtml(s.name) + ':</strong> ' + escHtml(s.value) + '</div>';
+      }).join('');
+    }
+    if (tagsEl && parsed.keywords) tagsEl.textContent = parsed.keywords.join(', ');
+    if (priceEl && parsed.recommended_price) {
+      priceEl.textContent = '£' + Number(parsed.recommended_price).toFixed(2);
+    }
+    if (marginEl && cost && parsed.recommended_price) {
+      const margin = ((parsed.recommended_price - parseFloat(cost)) / parsed.recommended_price * 100).toFixed(0);
+      marginEl.textContent = '~' + margin + '% margin at this price';
+    }
 
-    const kws = parsed.keywords || [];
-    document.getElementById('out-keywords').textContent = kws.join(', ');
+    show('lst-result');
 
   } catch (e) {
     alert('Error: ' + e.message);
   } finally {
-    btn.disabled    = false;
-    btn.textContent = 'Create listing';
+    if (btn) btn.disabled = false;
+    if (btnText) btnText.textContent = 'Generate listing';
   }
-});
+}
 
-document.getElementById('btn-copy-listing')?.addEventListener('click', () => {
-  const title = document.getElementById('out-title')?.textContent || '';
-  const desc  = document.getElementById('out-description')?.innerText || '';
-  navigator.clipboard.writeText(`TITLE:\n${title}\n\nDESCRIPTION:\n${desc}`)
-    .then(() => { document.getElementById('btn-copy-listing').textContent = 'Copied!'; setTimeout(() => { document.getElementById('btn-copy-listing').textContent = 'Copy listing'; }, 2000); });
-});
+/* ─── Copy helpers ─────────────────────────────────────────────────────── */
+function copyEl(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  navigator.clipboard.writeText(el.innerText || el.textContent || '')
+    .then(function() { showToast('Copied!'); })
+    .catch(function() { alert('Copy failed. Try manually.'); });
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   TAB 3 — ORDER TRACKER
+TAB 3 — ORDER TRACKER
 ═══════════════════════════════════════════════════════════════════════════ */
 
 const ORDERS_KEY = 'dd_orders';
 
-function loadOrders() {
-  try { return JSON.parse(localStorage.getItem(ORDERS_KEY)) || []; } catch { return []; }
-}
-function saveOrders(orders) {
-  localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
-}
+function loadOrders()       { try { return JSON.parse(localStorage.getItem(ORDERS_KEY)) || {}; } catch (e) { return {}; } }
+function saveOrders(orders) { localStorage.setItem(ORDERS_KEY, JSON.stringify(orders)); }
 
 function renderOrders() {
-  const orders  = loadOrders();
-  const filter  = document.getElementById('order-filter')?.value || 'all';
-  const search  = document.getElementById('order-search')?.value?.toLowerCase() || '';
-  const list    = document.getElementById('orders-list');
+  const ordersObj = loadOrders();
+  const orders    = Object.entries(ordersObj).map(function(entry) {
+    return Object.assign({ _key: entry[0] }, entry[1]);
+  });
+  const list = document.getElementById('orders-list');
+  if (!list) return;
 
-  let filtered = orders;
-  if (filter !== 'all') filtered = filtered.filter(o => o.status === filter);
-  if (search) filtered = filtered.filter(o =>
-    (o.item || '').toLowerCase().includes(search) ||
-    (o.buyer || '').toLowerCase().includes(search) ||
-    (o.id || '').toLowerCase().includes(search)
-  );
-
-  if (!filtered.length) {
-    list.innerHTML = '<div class="empty-state">No orders found.</div>';
-    return;
+  if (!orders.length) {
+    list.innerHTML = '<p style="font-size:13px;color:var(--text-secondary);padding:1rem 0">No orders found.</p>';
+  } else {
+    const statusClass = {
+      'awaiting supplier order': 'pill-amber',
+      'shipped':   'pill-blue',
+      'delivered': 'pill-green',
+      'issue':     'pill-red'
+    };
+    list.innerHTML = orders.map(function(o) {
+      const sc = statusClass[o.status] || 'pill-gray';
+      return '<div class="order-card" style="border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:.75rem">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">' +
+        '<strong>' + escHtml(o.oid || '—') + '</strong>' +
+        '<span class="pill ' + sc + '">' + escHtml(o.status || '—') + '</span>' +
+        '</div>' +
+        '<div style="font-size:13px;color:var(--text-secondary)">' +
+        '<div>Item: ' + escHtml(o.item || '—') + '</div>' +
+        '<div>Buyer: ' + escHtml(o.buyer || '—') + '</div>' +
+        '<div>Sale: ' + (o.sale ? '£' + parseFloat(o.sale).toFixed(2) : '—') +
+        ' &nbsp; Cost: ' + (o.cost ? '£' + parseFloat(o.cost).toFixed(2) : '—') + '</div>' +
+        '</div>' +
+        '<div style="margin-top:.5rem;display:flex;gap:.5rem">' +
+        '<select onchange="updateOrderStatus(' + "'" + o._key + "'" + ', this.value)" style="font-size:12px;padding:2px 4px">' +
+        ['awaiting supplier order','shipped','delivered','issue'].map(function(s) {
+          return '<option value="' + s + '"' + (o.status === s ? ' selected' : '') + '>' + s + '</option>';
+        }).join('') +
+        '</select>' +
+        '<button class="btn btn-sm" onclick="deleteOrder(' + "'" + o._key + "'" + ')" style="color:var(--danger,#dc2626)">Delete</button>' +
+        '</div></div>';
+    }).join('');
   }
 
-  const statusClass = { pending: 'pill-amber', ordered: 'pill-blue', shipped: 'pill-purple', delivered: 'pill-green', issue: 'pill-red' };
-
-  list.innerHTML = filtered.map(o => `
-    <div class="order-card">
-      <div class="order-header">
-        <div>
-          <strong>#${o.id || '?'}</strong>
-          <span class="pill ${statusClass[o.status] || 'pill-gray'}">${o.status}</span>
-        </div>
-        <div class="order-actions">
-          <select onchange="updateOrderStatus('${o._key}', this.value)">
-            ${['pending','ordered','shipped','delivered','issue'].map(s =>
-              `<option value="${s}" ${o.status === s ? 'selected' : ''}>${s}</option>`
-            ).join('')}
-          </select>
-          <button class="btn-danger btn-sm" onclick="deleteOrder('${o._key}')">Delete</button>
-        </div>
-      </div>
-      <div class="order-body">
-        <div><span class="label">Item</span> ${o.item || '—'}</div>
-        <div><span class="label">Buyer</span> ${o.buyer || '—'}</div>
-        <div><span class="label">Sale price</span> ${o.sale_price ? '£' + o.sale_price : '—'}</div>
-        <div><span class="label">Cost</span> ${o.cost ? '£' + o.cost : '—'}</div>
-        <div><span class="label">Profit</span> ${o.sale_price && o.cost ? '£' + (parseFloat(o.sale_price) - parseFloat(o.cost) - (parseFloat(o.sale_price) * 0.127)).toFixed(2) : '—'}</div>
-        <div><span class="label">Tracking</span> ${o.tracking || '—'}</div>
-        <div><span class="label">Notes</span> ${o.notes || '—'}</div>
-      </div>
-    </div>
-  `).join('');
-
-  // Metrics
-  const total  = orders.length;
-  const profit = orders.reduce((acc, o) => {
-    if (o.sale_price && o.cost) {
-      return acc + (parseFloat(o.sale_price) - parseFloat(o.cost) - parseFloat(o.sale_price) * 0.127);
-    }
-    return acc;
+  const orders_all = orders;
+  const total  = orders_all.length;
+  const profit = orders_all.reduce(function(acc, o) {
+    return (o.sale && o.cost) ? acc + (parseFloat(o.sale) - parseFloat(o.cost)) : acc;
   }, 0);
-  document.getElementById('ord-total').textContent  = total;
-  document.getElementById('ord-profit').textContent = `£${profit.toFixed(2)}`;
-  document.getElementById('ord-pending').textContent = orders.filter(o => o.status === 'pending').length;
+  const withMargin = orders_all.filter(function(o) { return o.sale && o.cost && parseFloat(o.sale) > 0; });
+  const avgMargin  = withMargin.length
+    ? Math.round(withMargin.reduce(function(acc, o) {
+        return acc + ((parseFloat(o.sale) - parseFloat(o.cost)) / parseFloat(o.sale) * 100);
+      }, 0) / withMargin.length)
+    : 0;
+
+  const statOrders = document.getElementById('stat-orders');
+  const statProfit = document.getElementById('stat-profit');
+  const statMargin = document.getElementById('stat-margin');
+  if (statOrders) statOrders.textContent = total;
+  if (statProfit) statProfit.textContent = '£' + profit.toFixed(2);
+  if (statMargin) statMargin.textContent = (isNaN(avgMargin) ? 0 : avgMargin) + '%';
 }
 
 function updateOrderStatus(key, status) {
   const orders = loadOrders();
-  const order  = orders.find(o => o._key === key);
-  if (order) { order.status = status; saveOrders(orders); renderOrders(); }
+  if (orders[key]) { orders[key].status = status; saveOrders(orders); renderOrders(); }
 }
 
 function deleteOrder(key) {
   if (!confirm('Delete this order?')) return;
-  const orders = loadOrders().filter(o => o._key !== key);
+  const orders = loadOrders();
+  delete orders[key];
   saveOrders(orders);
   renderOrders();
 }
 
-document.getElementById('btn-add-order')?.addEventListener('click', () => {
-  document.getElementById('add-order-form').style.display = 'block';
-});
+function toggleAddOrder() {
+  const form = document.getElementById('add-order-form');
+  if (form) form.classList.toggle('hidden');
+}
 
-document.getElementById('btn-cancel-order')?.addEventListener('click', () => {
-  document.getElementById('add-order-form').style.display = 'none';
-});
+function saveOrder() {
+  const oid    = (document.getElementById('new-oid')   ? document.getElementById('new-oid').value.trim()   : '');
+  const item   = (document.getElementById('new-item')  ? document.getElementById('new-item').value.trim()  : '');
+  const buyer  = (document.getElementById('new-buyer') ? document.getElementById('new-buyer').value.trim() : '');
+  const sale   = (document.getElementById('new-sale')  ? document.getElementById('new-sale').value   : '');
+  const cost   = (document.getElementById('new-cost')  ? document.getElementById('new-cost').value   : '');
+  const status = (document.getElementById('new-status') ? document.getElementById('new-status').value : 'awaiting supplier order');
 
-document.getElementById('btn-save-order')?.addEventListener('click', () => {
-  const get = id => document.getElementById(id)?.value?.trim() || '';
-  const order = {
-    _key:       Date.now().toString(),
-    id:         get('new-order-id') || `DD-${Date.now()}`,
-    item:       get('new-order-item'),
-    buyer:      get('new-order-buyer'),
-    sale_price: get('new-order-sale'),
-    cost:       get('new-order-cost'),
-    tracking:   get('new-order-tracking'),
-    notes:      get('new-order-notes'),
-    status:     document.getElementById('new-order-status')?.value || 'pending',
-    created:    new Date().toISOString(),
-  };
+  if (!oid || !item) { alert('eBay Order ID and Item Name are required.'); return; }
+
   const orders = loadOrders();
-  orders.unshift(order);
+  const key    = Date.now().toString();
+  orders[key]  = { oid: oid, item: item, buyer: buyer, sale: parseFloat(sale) || 0, cost: parseFloat(cost) || 0, status: status };
   saveOrders(orders);
-  document.getElementById('add-order-form').style.display = 'none';
-  // Clear fields
-  ['new-order-id','new-order-item','new-order-buyer','new-order-sale','new-order-cost','new-order-tracking','new-order-notes'].forEach(id => {
+  renderOrders();
+  toggleAddOrder();
+
+  ['new-oid','new-item','new-buyer','new-sale','new-cost'].forEach(function(id) {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
-  renderOrders();
-});
+}
 
-document.getElementById('order-filter')?.addEventListener('change', renderOrders);
-document.getElementById('order-search')?.addEventListener('input', renderOrders);
-
-// Initial render
 renderOrders();
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   TAB 4 — SUPPLIER WORKFLOW
+TAB 4 — SUPPLIER WORKFLOW
 ═══════════════════════════════════════════════════════════════════════════ */
 
-document.getElementById('btn-supplier-search')?.addEventListener('click', async () => {
-  const product  = document.getElementById('supplier-product')?.value?.trim();
-  const budget   = document.getElementById('supplier-budget')?.value?.trim();
-  const location = document.getElementById('supplier-location')?.value || 'UK';
+async function runSupplier() {
+  const product = (document.getElementById('sup-product') ? document.getElementById('sup-product').value.trim() : '');
+  const qty     = (document.getElementById('sup-qty')     ? document.getElementById('sup-qty').value     : '1');
+  const name    = (document.getElementById('sup-name')    ? document.getElementById('sup-name').value.trim()    : '');
+  const addr1   = (document.getElementById('sup-addr1')   ? document.getElementById('sup-addr1').value.trim()   : '');
+  const city    = (document.getElementById('sup-city')    ? document.getElementById('sup-city').value.trim()    : '');
+  const post    = (document.getElementById('sup-post')    ? document.getElementById('sup-post').value.trim()    : '');
+  const notes   = (document.getElementById('sup-notes')   ? document.getElementById('sup-notes').value.trim()   : '');
 
-  if (!product) return alert('Enter a product to search.');
+  if (!product) { alert('Enter a product name.'); return; }
 
-  const btn = document.getElementById('btn-supplier-search');
-  btn.disabled    = true;
-  btn.textContent = 'Searching…';
+  const btn     = document.getElementById('sup-btn');
+  const btnText = document.getElementById('sup-btn-text');
+  if (btn) btn.disabled = true;
+  if (btnText) btnText.textContent = 'Generating...';
 
   try {
-    const SYSTEM = `You are an expert dropshipping supplier researcher.
-You MUST respond with ONLY a raw JSON object — no markdown, no backticks, no explanation.
-Start with { and end with }.`;
+    const delivery = [name, addr1, city, post].filter(Boolean).join(', ');
+    const userMsg  = 'Write a professional dropshipping order message for:\n' +
+      'Product: ' + product + '\n' +
+      'Quantity: ' + qty + '\n' +
+      'Delivery address: ' + (delivery || 'To be provided') + '\n' +
+      'Additional notes: ' + (notes || 'None') + '\n\n' +
+      'Write a clear, professional email/message suitable for sending to a Syncee, AliExpress, or direct supplier. Include all order details. Be concise.';
 
-    const userMsg = `Find dropshipping supplier recommendations for: "${product}"
-${budget ? `Target cost price: £${budget}` : ''}
-Preferred supplier location: ${location}
+    const message = await claude(
+      'You are a professional eBay UK dropshipper writing supplier order messages. Be concise and professional.',
+      userMsg,
+      500
+    );
 
-Return JSON:
-{
-  "suppliers": [
-    {
-      "name": "Supplier name",
-      "platform": "CJ Dropshipping / AliExpress / Syncee / UK Wholesale / etc",
-      "url_hint": "where to find them",
-      "est_cost": number,
-      "shipping_days": "e.g. 7-14",
-      "moq": "minimum order e.g. 1",
-      "pros": ["pro1", "pro2"],
-      "cons": ["con1"],
-      "rating": number (1-5)
-    }
-  ],
-  "recommended_markup": number,
-  "tips": ["tip1", "tip2"]
-}`;
-
-    const raw    = await claude(SYSTEM, userMsg, 2000);
-    const parsed = parseJSON(raw);
-
-    const suppliers = parsed.suppliers || [];
-    const out       = document.getElementById('supplier-results');
-    out.style.display = 'block';
-
-    document.getElementById('supplier-tips').innerHTML = (parsed.tips || [])
-      .map(t => `<li>${t}</li>`).join('');
-    document.getElementById('supplier-markup').textContent =
-      parsed.recommended_markup ? `Recommended markup: ${parsed.recommended_markup}x` : '';
-
-    document.getElementById('supplier-cards').innerHTML = suppliers.map(s => `
-      <div class="supplier-card">
-        <div class="supplier-header">
-          <strong>${s.name}</strong>
-          <span class="pill pill-blue">${s.platform}</span>
-          <span class="stars">${'★'.repeat(Math.round(s.rating || 0))}${'☆'.repeat(5 - Math.round(s.rating || 0))}</span>
-        </div>
-        <div class="supplier-body">
-          <div><span class="label">Est. cost</span> £${parseFloat(s.est_cost || 0).toFixed(2)}</div>
-          <div><span class="label">Shipping</span> ${s.shipping_days || '?'} days</div>
-          <div><span class="label">MOQ</span> ${s.moq || '1'}</div>
-          <div><span class="label">Find on</span> ${s.url_hint || '—'}</div>
-        </div>
-        <div class="pros-cons">
-          <div class="pros">${(s.pros || []).map(p => `<span>✓ ${p}</span>`).join('')}</div>
-          <div class="cons">${(s.cons || []).map(c => `<span>✗ ${c}</span>`).join('')}</div>
-        </div>
-      </div>
-    `).join('');
+    const msgDiv = document.getElementById('sup-msg');
+    if (msgDiv) msgDiv.textContent = message;
+    show('sup-result');
 
   } catch (e) {
     alert('Error: ' + e.message);
   } finally {
-    btn.disabled    = false;
-    btn.textContent = 'Find suppliers';
+    if (btn) btn.disabled = false;
+    if (btnText) btnText.textContent = 'Generate message';
   }
-});
-
-/* ─── Settings / API key ────────────────────────────────────────────────── */
-document.getElementById('btn-save-key')?.addEventListener('click', () => {
-  const val = document.getElementById('settings-key')?.value?.trim();
-  if (!val) return alert('Enter an API key.');
-  saveKey(val);
-  alert('API key saved.');
-});
-
-document.getElementById('btn-clear-key')?.addEventListener('click', () => {
-  if (!confirm('Remove saved API key?')) return;
-  localStorage.removeItem(KEY_NAME);
-  const el = document.getElementById('settings-key');
-  if (el) el.value = '';
-  alert('Key removed.');
-});
-
-// Pre-fill key field if already saved
-window.addEventListener('DOMContentLoaded', () => {
-  const k  = getKey();
-  const el = document.getElementById('settings-key');
-  if (el && k) el.value = k;
-});
+}
