@@ -23,19 +23,36 @@ function getPexelsKey()   { return localStorage.getItem(PEXELS_KEY_NAME); }
 function savePexelsKey(k) { localStorage.setItem(PEXELS_KEY_NAME, k.trim()); }
 
 function requirePexelsKey() {
-  let k = getPexelsKey();
+  const k = getPexelsKey();
   if (k) return k;
-  k = prompt('Enter your Pexels API key (free at pexels.com/api — stored locally only):');
-  if (!k) throw new Error('No Pexels API key provided.');
-  savePexelsKey(k);
-  return k;
+  return null; // signals that key entry UI should be shown
 }
 
 function resetPexelsKey() {
   localStorage.removeItem(PEXELS_KEY_NAME);
-  const k = prompt('Enter new Pexels API key (free at pexels.com/api):');
-  if (k) { savePexelsKey(k); showToast('Pexels API key saved'); searchImages(); }
-  else showToast('Pexels key cleared — images will prompt on next search');
+  showPexelsKeyUI();
+}
+
+function showPexelsKeyUI() {
+  const grid = document.getElementById('lst-img-grid');
+  if (!grid) return;
+  grid.innerHTML =
+    '<div style="padding:.75rem;background:var(--bg-secondary,#f8f9fa);border-radius:8px;font-size:13px">' +
+    '<p style="margin:0 0 .5rem;color:var(--text-primary);font-weight:600">🔑 Pexels API key needed for images</p>' +
+    '<p style="margin:0 0 .75rem;color:var(--text-secondary)">Free key at <a href="https://www.pexels.com/api/" target="_blank">pexels.com/api</a> — takes 1 minute, instant approval.</p>' +
+    '<div style="display:flex;gap:6px">' +
+    '<input id="pexels-key-input" type="text" placeholder="Paste your Pexels API key here" style="flex:1;padding:6px 10px;border:1px solid var(--border,#ddd);border-radius:6px;font-size:13px;background:var(--bg-primary,#fff);color:var(--text-primary)" />' +
+    '<button class="btn btn-primary btn-sm" onclick="savePexelsKeyFromUI()" style="white-space:nowrap">Save & load images</button>' +
+    '</div>' +
+    '</div>';
+}
+
+function savePexelsKeyFromUI() {
+  const input = document.getElementById('pexels-key-input');
+  if (!input || !input.value.trim()) { showToast('Please paste your Pexels API key'); return; }
+  savePexelsKey(input.value.trim());
+  showToast('Pexels key saved!');
+  searchImages();
 }
 
 /* ─── Core Claude call ──────────────────────────────────────────────────── */
@@ -486,11 +503,11 @@ async function searchImages() {
     .trim();
 
   // Pexels API — free, requires a free API key from pexels.com/api
-  let pexelsKey;
-  try { pexelsKey = requirePexelsKey(); } catch(e) {
+  const pexelsKey = requirePexelsKey();
+  if (!pexelsKey) {
     if (loadingEl) { loadingEl.style.display = 'none'; }
     if (refreshBtn) refreshBtn.disabled = false;
-    grid.innerHTML = '<p style="color:var(--text-secondary);font-size:13px;padding:.5rem">No Pexels API key — images unavailable. Get a free key at <a href="https://www.pexels.com/api/" target="_blank">pexels.com/api</a> and reload.</p>';
+    showPexelsKeyUI();
     return;
   }
 
