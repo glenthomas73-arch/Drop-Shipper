@@ -448,8 +448,7 @@ function loadSupplierImages() {
   const grid     = document.getElementById('lst-img-grid');
   if (!textarea || !grid) return;
 
-  const urls = textarea.value.split('
-')
+  const urls = textarea.value.split('\n')
     .map(function(u) { return u.trim(); })
     .filter(function(u) { return u.length > 0; });
 
