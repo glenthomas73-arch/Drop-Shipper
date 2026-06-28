@@ -443,43 +443,62 @@ IMAGE SECTION - supplier URL paste & select
 let _selectedImages = []; // { url, filename }
 let _currentImages  = [];
 
-let _supplierUrlsCache = '';
+let _supplierUrls = [];
 
-function onSupplierUrlsInput(el) {
-  _supplierUrlsCache = el.value || el.innerHTML || '';
+function addSupplierUrl() {
+  const input = document.getElementById('supplier-url-input');
+  if (!input) return;
+  const url = input.value.trim();
+  if (!url || url.indexOf('http') !== 0) { showToast('Paste a valid image URL starting with http'); return; }
+  if (_supplierUrls.indexOf(url) > -1) { showToast('URL already added'); return; }
+  _supplierUrls.push(url);
+  input.value = '';
+  input.focus();
+  updateSupplierUrlList();
+  buildImageGrid();
+  showToast('Image added (' + _supplierUrls.length + ' total)');
 }
 
-function loadSupplierImages() {
-  const textarea = document.getElementById('supplier-img-urls');
-  const grid     = document.getElementById('lst-img-grid');
-  if (!grid) return;
+function updateSupplierUrlList() {
+  const el = document.getElementById('supplier-url-list');
+  if (!el) return;
+  if (_supplierUrls.length === 0) { el.textContent = ''; return; }
+  el.innerHTML = _supplierUrls.map(function(url, i) {
+    const short = url.length > 60 ? url.substring(0, 60) + '...' : url;
+    return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">' +
+      '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (i+1) + '. ' + escHtml(short) + '</span>' +
+      '<button onclick="removeSupplierUrl(' + i + ')" style="border:none;background:none;cursor:pointer;color:var(--text-secondary);font-size:16px;padding:0 4px">&times;</button>' +
+      '</div>';
+  }).join('');
+}
 
-  // Try multiple ways to get the value (Dashlane can block .value)
-  const raw = (textarea ? (textarea.value || textarea.textContent || textarea.innerHTML || '') : '') || _supplierUrlsCache;
+function removeSupplierUrl(i) {
+  _supplierUrls.splice(i, 1);
+  updateSupplierUrlList();
+  buildImageGrid();
+}
 
-  const urls = raw.split('\n')
-    .map(function(u) { return u.trim().replace(/<[^>]+>/g, ''); })
-    .filter(function(u) { return u.length > 4 && u.indexOf('http') === 0; });
-
-  if (urls.length === 0) { showToast('Paste at least one image URL'); return; }
-
-  _currentImages = urls.map(function(url, i) {
-    const ext      = url.split('?')[0].split('.').pop().toLowerCase() || 'jpg';
+function buildImageGrid() {
+  _currentImages = _supplierUrls.map(function(url, i) {
+    const ext = url.split('?')[0].split('.').pop().toLowerCase();
     const filename = 'product-image-' + (i + 1) + '.' + (ext.length <= 4 ? ext : 'jpg');
     return { url: url, thumb: url, filename: filename };
   });
-
   renderImageGrid();
-  showToast(_currentImages.length + ' image' + (_currentImages.length > 1 ? 's' : '') + ' loaded');
 }
 
+function loadSupplierImages() { buildImageGrid(); }
+
 function clearSupplierImages() {
+  _supplierUrls   = [];
   _currentImages  = [];
   _selectedImages = [];
-  const textarea = document.getElementById('supplier-img-urls');
-  const grid     = document.getElementById('lst-img-grid');
-  if (textarea) textarea.value = '';
-  if (grid)     grid.innerHTML = '';
+  const input = document.getElementById('supplier-url-input');
+  const list  = document.getElementById('supplier-url-list');
+  const grid  = document.getElementById('lst-img-grid');
+  if (input) input.value = '';
+  if (list)  list.innerHTML = '';
+  if (grid)  grid.innerHTML = '';
   updateSelectedPanel();
 }
 
