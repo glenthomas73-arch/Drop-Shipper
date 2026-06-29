@@ -223,14 +223,15 @@
               </button>
             </div>
           </div>
-          <p class="helper-text" style="margin-bottom:.5rem">Go to your supplier on Syncee or Avasam, copy the product image URL, paste it below and click Add. Add up to 3 images for your eBay listing.</p>
+          <p class="helper-text" style="margin-bottom:.5rem">Paste a Syncee product URL and click <strong>Fetch images</strong> — the app loads up to 3 product images automatically.</p>
+          <div style="display:flex;gap:6px;margin-bottom:.75rem">
+            <input id="syncee-page-url" type="text" placeholder="https://syncee.com/product/..." style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg-primary);color:var(--text-primary)" onkeydown="if(event.key==='Enter')fetchSynceeImages()" />
+            <button class="btn btn-primary" id="fetch-images-btn" onmousedown="fetchSynceeImages()" style="white-space:nowrap"><span id="fetch-images-btn-text">Fetch images</span></button>
+          </div>
+          <p style="font-size:11px;color:var(--text-secondary);margin-bottom:.4rem">Or paste an image URL directly:</p>
           <div style="display:flex;gap:6px;margin-bottom:.5rem">
             <input id="supplier-url-input" type="text" placeholder="Paste image URL here (https://...)" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg-primary);color:var(--text-primary)" onkeydown="if(event.key==='Enter')addSupplierUrl()" />
-            <button class="btn btn-primary" onclick="addSupplierUrl()" style="white-space:nowrap">Add</button>
-            <button class="btn" onclick="pasteAndAddUrl()" style="white-space:nowrap" title="Read directly from clipboard">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
-              Clipboard
-            </button>
+            <button class="btn" onmousedown="addSupplierUrl()" style="white-space:nowrap">Add</button>
           </div>
           <div id="supplier-url-list" style="margin-bottom:.5rem;font-size:12px;color:var(--text-secondary)"></div>
           <div id="lst-img-grid" class="img-grid"></div>
@@ -346,6 +347,6 @@
 
   <div class="toast" id="toast">Copied to clipboard</div>
 
-  <script src="app.js?v=14"></script>
+  <script src="app.js?v=16"></script>
 </body>
 </html>

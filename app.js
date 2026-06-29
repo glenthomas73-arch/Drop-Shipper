@@ -466,6 +466,49 @@ document.addEventListener('paste', function(e) {
 });
 
 /* Primary method: read the input field (works with Dashlane workaround via paste event above) */
+async function fetchSynceeImages() {
+  var urlInput = document.getElementById('syncee-page-url');
+  var url = urlInput ? urlInput.value.trim() : '';
+  if (!url || url.indexOf('http') !== 0) { showToast('Paste a Syncee product URL first'); return; }
+
+  var btn = document.getElementById('fetch-images-btn');
+  var btnText = document.getElementById('fetch-images-btn-text');
+  if (btn) btn.disabled = true;
+  if (btnText) btnText.textContent = 'Fetching...';
+
+  try {
+    var proxyUrl = IMAGE_PROXY + '?url=' + encodeURIComponent(url);
+    var res = await fetch(proxyUrl);
+    var data = await res.json();
+
+    if (!data.images || !data.images.length) {
+      showToast('No images found on that page');
+      return;
+    }
+
+    // Add images to grid (up to 3)
+    var added = 0;
+    data.images.forEach(function(imgUrl) {
+      if (added >= 3) return;
+      if (_supplierUrls.indexOf(imgUrl) > -1) return;
+      if (_supplierUrls.length >= 3) return;
+      _supplierUrls.push(imgUrl);
+      added++;
+    });
+
+    if (urlInput) urlInput.value = '';
+    updateSupplierUrlList();
+    buildImageGrid();
+    showToast(added + ' image' + (added !== 1 ? 's' : '') + ' loaded from Syncee');
+
+  } catch (e) {
+    showToast('Could not fetch images: ' + e.message);
+  } finally {
+    if (btn) btn.disabled = false;
+    if (btnText) btnText.textContent = 'Fetch images';
+  }
+}
+
 function addSupplierUrl() {
   var input = document.getElementById('supplier-url-input');
   var url = ((input && input.value) || _pendingPastedUrl || '').trim();
