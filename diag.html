@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>DropDash Diagnostic</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  body { font-family: monospace; padding: 20px; }
+  .test { margin: 8px 0; padding: 8px; border-radius: 4px; }
+  .pass { background: #dcfce7; color: #166534; }
+  .fail { background: #fee2e2; color: #991b1b; }
+  .info { background: #dbeafe; color: #1e40af; }
+  button { margin: 4px; padding: 8px 14px; cursor: pointer; }
+</style>
+</head>
+<body>
+<h2>DropDash Live Diagnostic</h2>
+<div id="results"></div>
+<hr>
+<h3>Tab switch test</h3>
+<button onclick="testSwitch('listing')">Switch to Listing</button>
+<button onclick="testSwitch('orders')">Switch to Orders</button>
+<button onclick="testSwitch('supplier')">Switch to Supplier</button>
+<button onclick="testSwitch('research')">Switch to Research</button>
+<div id="switch-result" style="margin-top:8px;padding:8px;background:#f1f5f9"></div>
+<hr>
+<div id="panel-research" class="panel active" style="border:2px solid green;padding:8px">RESEARCH panel</div>
+<div id="panel-listing" class="panel" style="border:2px solid blue;padding:8px">LISTING panel</div>
+<div id="panel-orders" class="panel" style="border:2px solid orange;padding:8px">ORDERS panel</div>
+<div id="panel-supplier" class="panel" style="border:2px solid purple;padding:8px">SUPPLIER panel</div>
+
+<script>
+var R = document.getElementById('results');
+function log(msg, pass) {
+  var d = document.createElement('div');
+  d.className = 'test ' + (pass === true ? 'pass' : pass === false ? 'fail' : 'info');
+  d.textContent = msg;
+  R.appendChild(d);
+}
+
+// Test 1: panel CSS
+var panels = document.querySelectorAll('.panel');
+log('Panels found: ' + panels.length, panels.length === 4);
+
+// Test 2: only research visible at start
+var visible = Array.from(panels).filter(function(p) {
+  return getComputedStyle(p).display !== 'none';
+});
+log('Panels visible at start: ' + visible.map(function(p){return p.id}).join(', '), visible.length === 1);
+
+// Test 3: research has active class
+var research = document.getElementById('panel-research');
+log('Research has .active class: ' + research.classList.contains('active'), research.classList.contains('active'));
+
+// Test 4: computed display of research
+log('Research computed display: ' + getComputedStyle(research).display, getComputedStyle(research).display === 'block');
+
+// Test 5: listing computed display
+var listing = document.getElementById('panel-listing');
+log('Listing computed display at start: ' + getComputedStyle(listing).display, getComputedStyle(listing).display === 'none');
+
+// Test 6: .hidden !important check
+var testDiv = document.createElement('div');
+testDiv.className = 'hidden';
+testDiv.style.display = 'block';
+document.body.appendChild(testDiv);
+var hiddenDisplay = getComputedStyle(testDiv).display;
+log('.hidden with inline style=block shows as: ' + hiddenDisplay + ' (must be none due to !important)', hiddenDisplay === 'none');
+testDiv.remove();
+
+function testSwitch(name) {
+  document.querySelectorAll('.panel').forEach(function(p) {
+    p.classList.remove('active');
+    p.style.display = 'none';
+  });
+  var panel = document.getElementById('panel-' + name);
+  if (panel) { panel.classList.add('active'); panel.style.display = 'block'; }
+  
+  var sr = document.getElementById('switch-result');
+  var info = [];
+  document.querySelectorAll('.panel').forEach(function(p) {
+    info.push(p.id + ': computed=' + getComputedStyle(p).display + ' inline=' + (p.style.display||'none'));
+  });
+  sr.innerHTML = '<strong>After switching to ' + name + ':</strong><br>' + info.join('<br>');
+}
+
+log('--- Diagnostic complete. Run tab switch tests above ---', null);
+</script>
+</body>
+</html>
