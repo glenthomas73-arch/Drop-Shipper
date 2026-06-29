@@ -4,6 +4,7 @@
 const API_URL   = 'https://api.anthropic.com/v1/messages';
 const API_MODEL = 'claude-sonnet-4-6';
 const KEY_NAME        = 'dd_api_key';
+const IMAGE_PROXY  = 'https://dropdash-image-proxy.glenthomas73.workers.dev/';
 
 /* - API key helpers - */
 function getKey()    { return localStorage.getItem(KEY_NAME); }
@@ -518,7 +519,7 @@ function buildImageGrid() {
   _currentImages = _supplierUrls.map(function(url, i) {
     const ext = url.split('?')[0].split('.').pop().toLowerCase();
     const filename = 'product-image-' + (i + 1) + '.' + (ext.length <= 4 ? ext : 'jpg');
-    return { url: url, thumb: url, filename: filename };
+    return { url: url, thumb: IMAGE_PROXY + '?url=' + encodeURIComponent(url), filename: filename };
   });
   renderImageGrid();
 }
