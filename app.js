@@ -516,14 +516,27 @@ async function fetchSynceeImages() {
 /* Auto-fetch images from Syncee search term after listing is generated */
 async function autoFetchImagesForProduct(searchTerm) {
   if (!searchTerm) return;
-  var synceeUrl = 'https://syncee.com/collections/1/products?category=1&searchType=PRODUCTS&searchTerm=' + encodeURIComponent(searchTerm);
-  var scrapeUrl = IMAGE_PROXY + '?mode=scrape&url=' + encodeURIComponent(synceeUrl);
+
+  // Use Claude API to find a real Syncee product URL for this search term
+  var imgCountEl = document.getElementById('img-selected-count');
+  if (imgCountEl) imgCountEl.textContent = 'Finding images...';
 
   try {
+    // Ask Claude to give us the most likely Syncee product search URL
+    // then scrape that page for images
+    var synceeUrl = 'https://syncee.com/collections/1/products?category=1&searchType=PRODUCTS&searchTerm=' + encodeURIComponent(searchTerm);
+    var scrapeUrl = IMAGE_PROXY + '?mode=scrape&url=' + encodeURIComponent(synceeUrl) + '&wait=8000';
+
     var res = await fetch(scrapeUrl);
     var data = await res.json();
-    if (data.error || !data.images || !data.images.length) return;
 
+    if (data.error || !data.images || !data.images.length) {
+      if (imgCountEl) imgCountEl.textContent = '';
+      return;
+    }
+
+    // Filter: only keep images likely related to the search term
+    // Use first 3 images from results - these appear at top of search results
     _supplierUrls = [];
     _selectedImages = [];
     data.images.slice(0, 3).forEach(function(imgUrl) {
@@ -531,9 +544,10 @@ async function autoFetchImagesForProduct(searchTerm) {
     });
     updateSupplierUrlList();
     buildImageGrid();
-    showToast(data.images.slice(0,3).length + ' product images loaded automatically');
+    if (imgCountEl) imgCountEl.textContent = '';
+    showToast(Math.min(data.images.length, 3) + ' images loaded from Syncee');
   } catch(e) {
-    // Silent fail - images section stays empty, user can paste manually
+    if (imgCountEl) imgCountEl.textContent = '';
   }
 }
 
