@@ -434,6 +434,9 @@ async function runListing() {
 
     show('lst-result');
 
+    // Auto-load images from Syncee
+    autoFetchImagesForProduct(product);
+
   } catch (e) {
     alert('Error: ' + e.message);
   } finally {
@@ -474,19 +477,20 @@ async function fetchSynceeImages() {
   var btn = document.getElementById('fetch-images-btn');
   var btnText = document.getElementById('fetch-images-btn-text');
   if (btn) btn.disabled = true;
-  if (btnText) btnText.textContent = 'Fetching...';
+  if (btnText) btnText.textContent = 'Loading images...';
 
   try {
-    var proxyUrl = IMAGE_PROXY + '?url=' + encodeURIComponent(url);
-    var res = await fetch(proxyUrl);
+    // Use Firecrawl via Worker to render JS page and extract images
+    var scrapeUrl = IMAGE_PROXY + '?mode=scrape&url=' + encodeURIComponent(url);
+    var res = await fetch(scrapeUrl);
     var data = await res.json();
 
+    if (data.error) throw new Error(data.error);
     if (!data.images || !data.images.length) {
-      showToast('No images found on that page');
+      showToast('No images found on that page - try a specific product URL');
       return;
     }
 
-    // Add images to grid (up to 3)
     var added = 0;
     data.images.forEach(function(imgUrl) {
       if (added >= 3) return;
@@ -499,13 +503,37 @@ async function fetchSynceeImages() {
     if (urlInput) urlInput.value = '';
     updateSupplierUrlList();
     buildImageGrid();
-    showToast(added + ' image' + (added !== 1 ? 's' : '') + ' loaded from Syncee');
+    showToast(added + ' image' + (added !== 1 ? 's' : '') + ' loaded automatically');
 
   } catch (e) {
-    showToast('Could not fetch images: ' + e.message);
+    showToast('Could not load images: ' + e.message);
   } finally {
     if (btn) btn.disabled = false;
     if (btnText) btnText.textContent = 'Fetch images';
+  }
+}
+
+/* Auto-fetch images from Syncee search term after listing is generated */
+async function autoFetchImagesForProduct(searchTerm) {
+  if (!searchTerm) return;
+  var synceeUrl = 'https://syncee.com/collections/1/products?category=1&searchType=PRODUCTS&searchTerm=' + encodeURIComponent(searchTerm);
+  var scrapeUrl = IMAGE_PROXY + '?mode=scrape&url=' + encodeURIComponent(synceeUrl);
+
+  try {
+    var res = await fetch(scrapeUrl);
+    var data = await res.json();
+    if (data.error || !data.images || !data.images.length) return;
+
+    _supplierUrls = [];
+    _selectedImages = [];
+    data.images.slice(0, 3).forEach(function(imgUrl) {
+      _supplierUrls.push(imgUrl);
+    });
+    updateSupplierUrlList();
+    buildImageGrid();
+    showToast(data.images.slice(0,3).length + ' product images loaded automatically');
+  } catch(e) {
+    // Silent fail - images section stays empty, user can paste manually
   }
 }
 
