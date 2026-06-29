@@ -10,9 +10,9 @@ const IMAGE_PROXY  = 'https://dropdash-image-proxy.glenthomas73.workers.dev/';
 function supplierSearchUrl(platform, searchTerm) {
   var term = encodeURIComponent(searchTerm || '');
   if (platform === 'Avasam') {
-    return 'https://supply.avasam.co.uk/search?q=' + term;
+    return 'https://www.avasam.co.uk/search?q=' + term;
   }
-  return 'https://syncee.com/marketplace?search=' + term + '&warehouseLocation=GB';
+  return 'https://syncee.com/collections/1/products?searchTerm=' + term + '&searchType=PRODUCTS&warehouseLocation=GB';
 }
 
 /* - API key helpers - */
