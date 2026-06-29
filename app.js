@@ -96,10 +96,10 @@ function showToast(msg) {
 function switchTab(name, el) {
   document.querySelectorAll('.panel').forEach(function(p) {
     p.classList.remove('active');
-    p.classList.add('hidden');
+    p.style.display = 'none';
   });
   var panel = document.getElementById('panel-' + name);
-  if (panel) { panel.classList.remove('hidden'); panel.classList.add('active'); }
+  if (panel) { panel.classList.add('active'); panel.style.display = 'block'; }
   document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
   if (el) el.classList.add('active');
 }
