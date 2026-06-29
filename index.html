@@ -49,21 +49,21 @@
         <label class="label" for="res-query">Broad niche</label>
         <div class="row">
           <input id="res-query" type="text" placeholder="e.g. dog accessories, kitchen gadgets, home office" onkeydown="if(event.key==='Enter')runResearch()" />
-          <button class="btn btn-primary" onclick="runResearch()" id="res-btn">
+          <button class="btn btn-primary" onmousedown="runResearch()" id="res-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
             <span id="res-btn-text">Find opportunities</span>
           </button>
         </div>
         <p class="label" style="margin-top:1rem">Quick picks</p>
         <div class="chip-row">
-          <button class="chip" onclick="fillNiche('dog accessories')">Dog accessories</button>
-          <button class="chip" onclick="fillNiche('pet accessories')">Pet accessories</button>
-          <button class="chip" onclick="fillNiche('kitchen gadgets')">Kitchen gadgets</button>
-          <button class="chip" onclick="fillNiche('home office')">Home office</button>
-          <button class="chip" onclick="fillNiche('fitness gear')">Fitness gear</button>
-          <button class="chip" onclick="fillNiche('baby products')">Baby products</button>
-          <button class="chip" onclick="fillNiche('car accessories')">Car accessories</button>
-          <button class="chip" onclick="fillNiche('garden tools')">Garden tools</button>
+          <button class="chip" onmousedown="fillNiche('dog accessories')">Dog accessories</button>
+          <button class="chip" onmousedown="fillNiche('pet accessories')">Pet accessories</button>
+          <button class="chip" onmousedown="fillNiche('kitchen gadgets')">Kitchen gadgets</button>
+          <button class="chip" onmousedown="fillNiche('home office')">Home office</button>
+          <button class="chip" onmousedown="fillNiche('fitness gear')">Fitness gear</button>
+          <button class="chip" onmousedown="fillNiche('baby products')">Baby products</button>
+          <button class="chip" onmousedown="fillNiche('car accessories')">Car accessories</button>
+          <button class="chip" onmousedown="fillNiche('garden tools')">Garden tools</button>
         </div>
       </div>
 
@@ -107,11 +107,11 @@
         </div>
 
         <div style="display:flex;gap:8px;margin-top:.5rem">
-          <button class="btn btn-sm" onclick="copyResults()">
+          <button class="btn btn-sm" onmousedown="copyResults()">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
             Copy full report
           </button>
-          <button class="btn btn-sm" onclick="runResearch()">
+          <button class="btn btn-sm" onmousedown="runResearch()">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
             Re-scan (free)
           </button>
@@ -155,7 +155,7 @@
             <input id="lst-features" type="text" placeholder="e.g. eco-friendly, waterproof" />
           </div>
         </div>
-        <button class="btn btn-primary" onclick="runListing()" id="lst-btn">
+        <button class="btn btn-primary" onmousedown="runListing()" id="lst-btn">
           <span id="lst-btn-text">Generate listing</span>
         </button>
       </div>
@@ -164,7 +164,7 @@
         <div class="card">
           <div class="card-header">
             <span class="label" style="margin:0">Title <span class="char-count" id="title-chars"></span></span>
-            <button class="btn btn-sm" onclick="copyEl('lst-title')">
+            <button class="btn btn-sm" onmousedown="copyEl('lst-title')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               Copy
             </button>
@@ -174,7 +174,7 @@
         <div class="card">
           <div class="card-header">
             <span class="label" style="margin:0">Description</span>
-            <button class="btn btn-sm" onclick="copyEl('lst-desc')">
+            <button class="btn btn-sm" onmousedown="copyEl('lst-desc')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               Copy
             </button>
@@ -190,7 +190,7 @@
           <div class="card" style="margin:0">
             <div class="card-header" style="margin-bottom:8px">
               <span class="label" style="margin:0">Item specifics</span>
-              <button class="btn btn-sm" onclick="copyEl('lst-specifics')">
+              <button class="btn btn-sm" onmousedown="copyEl('lst-specifics')">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               </button>
             </div>
@@ -200,7 +200,7 @@
         <div class="card">
           <div class="card-header">
             <span class="label" style="margin:0">Search tags</span>
-            <button class="btn btn-sm" onclick="copyEl('lst-tags')">
+            <button class="btn btn-sm" onmousedown="copyEl('lst-tags')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               Copy
             </button>
@@ -217,7 +217,7 @@
             </span>
             <div style="display:flex;gap:6px;align-items:center">
               <span id="img-selected-count" style="font-size:12px;color:var(--text-secondary)"></span>
-              <button class="btn btn-sm" onclick="clearSupplierImages()">
+              <button class="btn btn-sm" onmousedown="clearSupplierImages()">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
                 Clear all
               </button>
@@ -249,7 +249,7 @@
       <div class="card">
         <div class="card-header">
           <h2 class="section-title" style="margin:0">Order tracker</h2>
-          <button class="btn btn-primary btn-sm" onclick="toggleAddOrder()">
+          <button class="btn btn-primary btn-sm" onmousedown="toggleAddOrder()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add order
           </button>
@@ -277,8 +277,8 @@
             </div>
           </div>
           <div class="btn-group">
-            <button class="btn btn-primary btn-sm" onclick="saveOrder()">Save order</button>
-            <button class="btn btn-sm" onclick="toggleAddOrder()">Cancel</button>
+            <button class="btn btn-primary btn-sm" onmousedown="saveOrder()">Save order</button>
+            <button class="btn btn-sm" onmousedown="toggleAddOrder()">Cancel</button>
           </div>
         </div>
 
@@ -323,7 +323,7 @@
           <label class="label" for="sup-notes">Special instructions (optional)</label>
           <textarea id="sup-notes" rows="2" placeholder="e.g. no invoice inside, plain packaging"></textarea>
         </div>
-        <button class="btn btn-primary" onclick="runSupplier()" id="sup-btn">
+        <button class="btn btn-primary" onmousedown="runSupplier()" id="sup-btn">
           <span id="sup-btn-text">Generate message</span>
         </button>
       </div>
@@ -332,7 +332,7 @@
         <div class="card">
           <div class="card-header">
             <span class="label" style="margin:0">Supplier message</span>
-            <button class="btn btn-sm" onclick="copyEl('sup-msg')">
+            <button class="btn btn-sm" onmousedown="copyEl('sup-msg')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               Copy
             </button>
@@ -347,6 +347,6 @@
 
   <div class="toast" id="toast">Copied to clipboard</div>
 
-  <script src="app.js?v=20"></script>
+  <script src="app.js?v=21"></script>
 </body>
 </html>
