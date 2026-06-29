@@ -12,7 +12,7 @@ function supplierSearchUrl(platform, searchTerm) {
   if (platform === 'Avasam') {
     return 'https://supply.avasam.co.uk/search?q=' + term;
   }
-  return 'https://app.syncee.com/marketplace?search=' + term + '&warehouseLocation=GB';
+  return 'https://syncee.com/marketplace?search=' + term + '&warehouseLocation=GB';
 }
 
 /* - API key helpers - */
